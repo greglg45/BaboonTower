@@ -1,0 +1,5 @@
+# Journal des mises à jour
+
+## 2025-08-06
+- Création du fichier `AGENTS.md` décrivant les directives de développement.
+- Initialisation du `CHANGELOG.md`.
