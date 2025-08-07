@@ -1,9 +1,11 @@
-using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace BaboonTower.UI
 {
+
     public class MainMenuController : MonoBehaviour
     {
         [Header("UI References")]
@@ -73,23 +75,24 @@ namespace BaboonTower.UI
             string version = VersionManager.GetVersion();
             versionText.text = $"Version {version}";
         }
-        
+
         #region Button Events
-        
+
         private void OnJoinLobbyClick()
         {
-            Debug.Log("Join Lobby clicked - TODO: Implement lobby connection logic");
-            // TODO: Implémenter la logique de connexion au lobby
-            // Possiblement charger une scène "LobbyConnection" ou ouvrir un panel de connexion IP
+            SceneManager.LoadScene("Lobby");
         }
-        
+
         private void OnOptionsClick()
         {
-            Debug.Log("Options clicked - TODO: Implement options modal");
-            // TODO: Ouvrir une fenêtre modale avec les réglages
-            // Possiblement instancier un prefab d'options ou activer un panel caché
+            // Activer le panel d'options
+            GameObject optionsPanel = GameObject.Find("OptionsPanel");
+            if (optionsPanel != null)
+            {
+                optionsPanel.SetActive(true);
+            }
         }
-        
+
         private void OnQuitClick()
         {
             Debug.Log("Quit application");
