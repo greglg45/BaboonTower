@@ -12,28 +12,24 @@ namespace BaboonTower.UI
         [Header("UI References")]
         [SerializeField] private TextMeshProUGUI lobbyTitleText;
         [SerializeField] private TextMeshProUGUI connectionStatusText;
+        [SerializeField] private TextMeshProUGUI serverInfoText;
         [SerializeField] private Transform playersListParent;
         [SerializeField] private GameObject playerItemPrefab;
-        
+
         [Header("Buttons")]
         [SerializeField] private Button readyButton;
         [SerializeField] private Button startGameButton;
+        [SerializeField] private Button stopServerButton;
         [SerializeField] private Button disconnectButton;
         [SerializeField] private Button backToMenuButton;
-        
-        [Header("Connection Panel")]
-        [SerializeField] private GameObject connectionPanel;
-        [SerializeField] private TMP_InputField serverIPInput;
-        [SerializeField] private TMP_InputField playerNameInput;
-        [SerializeField] private Button connectButton;
-        [SerializeField] private Button cancelButton;
-        
+
         [Header("Colors")]
         [SerializeField] private Color connectedColor = Color.green;
-        [SerializeField] private Color connectingColor = Color.yellow;
+        [SerializeField] private Color listeningColor = Color.blue;
         [SerializeField] private Color disconnectedColor = Color.red;
         [SerializeField] private Color readyColor = new Color(0.5f, 1f, 0.5f);
         [SerializeField] private Color notReadyColor = Color.white;
+        [SerializeField] private Color hostColor = new Color(1f, 0.8f, 0.2f);
 
         // State
         private bool isPlayerReady = false;
@@ -43,16 +39,7 @@ namespace BaboonTower.UI
         {
             InitializeLobby();
             SetupEventListeners();
-            
-            // Si pas connecté, afficher le panel de connexion
-            if (NetworkManager.Instance.CurrentState == ConnectionState.Disconnected)
-            {
-                ShowConnectionPanel();
-            }
-            else
-            {
-                ShowLobbyPanel();
-            }
+            UpdateUI();
         }
 
         private void OnDestroy()
@@ -64,37 +51,15 @@ namespace BaboonTower.UI
 
         private void InitializeLobby()
         {
-            // Configuration initiale des boutons
+            // Configuration des boutons
             readyButton.onClick.AddListener(ToggleReady);
             startGameButton.onClick.AddListener(StartGame);
+            stopServerButton.onClick.AddListener(StopServer);
             disconnectButton.onClick.AddListener(Disconnect);
             backToMenuButton.onClick.AddListener(BackToMenu);
-            
-            // Panel de connexion
-            connectButton.onClick.AddListener(AttemptConnection);
-            cancelButton.onClick.AddListener(BackToMenu);
-            
-            // Charger les paramètres sauvegardés
-            LoadSettings();
-            
+
             // État initial
             UpdateUI();
-        }
-
-        private void LoadSettings()
-        {
-            // Charger l'IP du serveur depuis les PlayerPrefs (configurée dans Options)
-            string savedIP = PlayerPrefs.GetString("ServerIP", "127.0.0.1");
-            serverIPInput.text = savedIP;
-            
-            // Charger le nom du joueur
-            string savedName = PlayerPrefs.GetString("PlayerName", "Player" + Random.Range(1000, 9999));
-            playerNameInput.text = savedName;
-            
-            if (NetworkManager.Instance != null)
-            {
-                NetworkManager.Instance.SetPlayerName(savedName);
-            }
         }
 
         private void SetupEventListeners()
@@ -122,53 +87,60 @@ namespace BaboonTower.UI
 
         #region UI Management
 
-        private void ShowConnectionPanel()
-        {
-            connectionPanel.SetActive(true);
-            // Cacher les autres éléments du lobby si nécessaire
-        }
-
-        private void ShowLobbyPanel()
-        {
-            connectionPanel.SetActive(false);
-            // Afficher les éléments du lobby
-        }
-
         private void UpdateUI()
         {
             if (NetworkManager.Instance == null) return;
 
             ConnectionState state = NetworkManager.Instance.CurrentState;
-            
+            NetworkMode mode = NetworkManager.Instance.CurrentMode;
+
             // Mise à jour du statut de connexion
-            UpdateConnectionStatus(state);
-            
+            UpdateConnectionStatus(state, mode);
+
             // Mise à jour des boutons
-            UpdateButtons(state);
-            
-            // Mise à jour du titre
-            UpdateLobbyTitle();
+            UpdateButtons(state, mode);
+
+            // Mise à jour du titre et info serveur
+            UpdateLobbyInfo(mode);
+
+            // Mise à jour de la liste des joueurs
+            if (NetworkManager.Instance.ConnectedPlayers.Count > 0)
+            {
+                UpdatePlayersList(NetworkManager.Instance.ConnectedPlayers);
+            }
         }
 
-        private void UpdateConnectionStatus(ConnectionState state)
+        private void UpdateConnectionStatus(ConnectionState state, NetworkMode mode)
         {
+            string modeText = mode == NetworkMode.Host ? " (Serveur)" : " (Client)";
+
             switch (state)
             {
                 case ConnectionState.Disconnected:
                     connectionStatusText.text = "Déconnecté";
                     connectionStatusText.color = disconnectedColor;
                     break;
-                    
+
+                case ConnectionState.Starting:
+                    connectionStatusText.text = "Démarrage...";
+                    connectionStatusText.color = listeningColor;
+                    break;
+
+                case ConnectionState.Listening:
+                    connectionStatusText.text = "En attente de joueurs" + modeText;
+                    connectionStatusText.color = listeningColor;
+                    break;
+
                 case ConnectionState.Connecting:
                     connectionStatusText.text = "Connexion en cours...";
-                    connectionStatusText.color = connectingColor;
+                    connectionStatusText.color = listeningColor;
                     break;
-                    
+
                 case ConnectionState.Connected:
-                    connectionStatusText.text = "Connecté";
+                    connectionStatusText.text = "Connecté" + modeText;
                     connectionStatusText.color = connectedColor;
                     break;
-                    
+
                 case ConnectionState.Failed:
                     connectionStatusText.text = "Connexion échouée";
                     connectionStatusText.color = disconnectedColor;
@@ -176,32 +148,45 @@ namespace BaboonTower.UI
             }
         }
 
-        private void UpdateButtons(ConnectionState state)
+        private void UpdateButtons(ConnectionState state, NetworkMode mode)
         {
-            bool isConnected = (state == ConnectionState.Connected);
-            bool isConnecting = (state == ConnectionState.Connecting);
-            
-            // Boutons du lobby
+            bool isConnected = (state == ConnectionState.Connected || state == ConnectionState.Listening);
+            bool isHost = (mode == NetworkMode.Host);
+
+            // Boutons disponibles selon le mode et l'état
             readyButton.gameObject.SetActive(isConnected);
-            startGameButton.gameObject.SetActive(isConnected && NetworkManager.Instance.IsHost);
-            disconnectButton.gameObject.SetActive(isConnected);
-            
-            // Panel de connexion
-            connectButton.interactable = !isConnecting && !isConnected;
-            serverIPInput.interactable = !isConnecting && !isConnected;
-            playerNameInput.interactable = !isConnecting && !isConnected;
-            
+            startGameButton.gameObject.SetActive(isConnected && isHost);
+            stopServerButton.gameObject.SetActive(isHost && (state != ConnectionState.Disconnected));
+            disconnectButton.gameObject.SetActive(!isHost && isConnected);
+
             // Mise à jour du bouton Ready
             UpdateReadyButton();
         }
 
+        private void UpdateLobbyInfo(NetworkMode mode)
+        {
+            int playerCount = NetworkManager.Instance.ConnectedPlayers.Count;
+
+            if (mode == NetworkMode.Host)
+            {
+                lobbyTitleText.text = $"Lobby Baboon Tower - Serveur ({playerCount} joueurs)";
+                serverInfoText.text = $"IP du serveur: {NetworkManager.Instance.LocalIPAddress}:7777\nDonnez cette adresse aux autres joueurs";
+            }
+            else
+            {
+                lobbyTitleText.text = $"Lobby Baboon Tower - Client ({playerCount} joueurs)";
+                serverInfoText.text = "Connecté au serveur";
+            }
+        }
+
         private void UpdateReadyButton()
         {
-            if (NetworkManager.Instance.CurrentState != ConnectionState.Connected) return;
+            if (NetworkManager.Instance.CurrentState != ConnectionState.Connected &&
+                NetworkManager.Instance.CurrentState != ConnectionState.Listening) return;
 
             var buttonImage = readyButton.GetComponent<Image>();
             var buttonText = readyButton.GetComponentInChildren<TextMeshProUGUI>();
-            
+
             if (isPlayerReady)
             {
                 buttonText.text = "Prêt ✓";
@@ -214,12 +199,6 @@ namespace BaboonTower.UI
             }
         }
 
-        private void UpdateLobbyTitle()
-        {
-            int playerCount = NetworkManager.Instance.ConnectedPlayers.Count;
-            lobbyTitleText.text = $"Lobby Baboon Tower ({playerCount} joueurs)";
-        }
-
         #endregion
 
         #region Players List Management
@@ -228,14 +207,15 @@ namespace BaboonTower.UI
         {
             // Nettoyer la liste existante
             ClearPlayersList();
-            
+
             // Créer les nouveaux éléments
             foreach (PlayerData player in players)
             {
                 CreatePlayerItem(player);
             }
-            
-            UpdateLobbyTitle();
+
+            // Mettre à jour le titre
+            UpdateLobbyInfo(NetworkManager.Instance.CurrentMode);
         }
 
         private void ClearPlayersList()
@@ -256,19 +236,28 @@ namespace BaboonTower.UI
 
             GameObject playerItem = Instantiate(playerItemPrefab, playersListParent);
             playerItems.Add(playerItem);
-            
+
             // Configurer l'affichage du joueur
             var nameText = playerItem.GetComponentInChildren<TextMeshProUGUI>();
             var backgroundImage = playerItem.GetComponent<Image>();
-            
+
             if (nameText != null)
             {
-                nameText.text = player.playerName + (player.isReady ? " ✓" : "");
+                string playerName = player.playerName;
+                if (player.isHost) playerName += " (Serveur)";
+                if (player.isReady) playerName += " ✓";
+
+                nameText.text = playerName;
             }
-            
+
             if (backgroundImage != null)
             {
-                backgroundImage.color = player.isReady ? readyColor : notReadyColor;
+                if (player.isHost)
+                    backgroundImage.color = hostColor;
+                else if (player.isReady)
+                    backgroundImage.color = readyColor;
+                else
+                    backgroundImage.color = notReadyColor;
             }
         }
 
@@ -291,56 +280,39 @@ namespace BaboonTower.UI
             }
         }
 
+        private void StopServer()
+        {
+            if (NetworkManager.Instance.IsHost)
+            {
+                NetworkManager.Instance.StopNetworking();
+                BackToMenu();
+            }
+        }
+
         private void Disconnect()
         {
-            NetworkManager.Instance.DisconnectFromServer();
-            ShowConnectionPanel();
+            if (!NetworkManager.Instance.IsHost)
+            {
+                NetworkManager.Instance.StopNetworking();
+                BackToMenu();
+            }
         }
 
         private void BackToMenu()
         {
-            if (NetworkManager.Instance.CurrentState == ConnectionState.Connected)
+            // Arrêter le réseau s'il est encore actif
+            if (NetworkManager.Instance.CurrentState != ConnectionState.Disconnected)
             {
-                NetworkManager.Instance.DisconnectFromServer();
+                NetworkManager.Instance.StopNetworking();
             }
-            
-            SceneManager.LoadScene("MainMenu");
-        }
 
-        private void AttemptConnection()
-        {
-            string serverIP = serverIPInput.text.Trim();
-            string playerName = playerNameInput.text.Trim();
-            
-            // Validation
-            if (string.IsNullOrEmpty(serverIP))
-            {
-                ShowMessage("Veuillez saisir l'adresse IP du serveur");
-                return;
-            }
-            
-            if (string.IsNullOrEmpty(playerName))
-            {
-                ShowMessage("Veuillez saisir votre nom de joueur");
-                return;
-            }
-            
-            // Sauvegarder les paramètres
-            PlayerPrefs.SetString("ServerIP", serverIP);
-            PlayerPrefs.SetString("PlayerName", playerName);
-            
-            // Définir le nom du joueur
-            NetworkManager.Instance.SetPlayerName(playerName);
-            
-            // Tenter la connexion
-            NetworkManager.Instance.ConnectToServer(serverIP);
+            SceneManager.LoadScene("MainMenu");
         }
 
         private void ShowMessage(string message)
         {
-            // TODO: Afficher un message d'erreur à l'utilisateur
             Debug.Log($"Message: {message}");
-            // Vous pouvez implémenter un système de toast/popup ici
+            // TODO: Implémenter un système de notification UI
         }
 
         #endregion
@@ -350,15 +322,17 @@ namespace BaboonTower.UI
         private void OnConnectionStateChanged(ConnectionState newState)
         {
             UpdateUI();
-            
-            if (newState == ConnectionState.Connected)
+
+            if (newState == ConnectionState.Failed || newState == ConnectionState.Disconnected)
             {
-                ShowLobbyPanel();
-            }
-            else if (newState == ConnectionState.Failed || newState == ConnectionState.Disconnected)
-            {
-                ShowConnectionPanel();
                 isPlayerReady = false;
+
+                // Si on est déconnecté de manière inattendue, revenir au menu
+                if (newState == ConnectionState.Disconnected && NetworkManager.Instance.CurrentMode == NetworkMode.Client)
+                {
+                    ShowMessage("Déconnecté du serveur");
+                    Invoke(nameof(BackToMenu), 2f); // Délai pour voir le message
+                }
             }
         }
 
@@ -374,9 +348,9 @@ namespace BaboonTower.UI
 
         private void OnGameStarted()
         {
-            // Charger la scène de jeu
             Debug.Log("Lancement de la partie !");
             // TODO: SceneManager.LoadScene("GameScene");
+            ShowMessage("Lancement de la partie ! (GameScene pas encore implémentée)");
         }
 
         #endregion

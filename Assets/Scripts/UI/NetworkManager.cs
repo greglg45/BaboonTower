@@ -1,17 +1,26 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
+using UnityEngine;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using UnityEngine;
+using System.Collections.Generic;
+using System;
+using System.Linq;
 
 namespace BaboonTower.Network
 {
+    public enum NetworkMode
+    {
+        None,
+        Host,
+        Client
+    }
+
     public enum ConnectionState
     {
         Disconnected,
+        Starting,
+        Listening,
         Connecting,
         Connected,
         Failed
@@ -23,12 +32,14 @@ namespace BaboonTower.Network
         public string playerName;
         public int playerId;
         public bool isReady;
-        
-        public PlayerData(string name, int id)
+        public bool isHost;
+
+        public PlayerData(string name, int id, bool host = false)
         {
             playerName = name;
             playerId = id;
             isReady = false;
+            isHost = host;
         }
     }
 
@@ -37,11 +48,27 @@ namespace BaboonTower.Network
     {
         public string messageType;
         public string data;
-        
+
         public NetworkMessage(string type, string content)
         {
             messageType = type;
             data = content;
+        }
+    }
+
+    public class ConnectedClient
+    {
+        public TcpClient tcpClient;
+        public NetworkStream stream;
+        public PlayerData playerData;
+        public Thread clientThread;
+        public bool isActive = true;
+
+        public ConnectedClient(TcpClient client, int playerId)
+        {
+            tcpClient = client;
+            stream = client.GetStream();
+            playerData = new PlayerData("", playerId);
         }
     }
 
@@ -53,6 +80,7 @@ namespace BaboonTower.Network
         [SerializeField] private int defaultPort = 7777;
         [SerializeField] private float heartbeatInterval = 5f;
         [SerializeField] private float connectionTimeout = 10f;
+        [SerializeField] private int maxPlayers = 8;
 
         [Header("Player Settings")]
         [SerializeField] private string playerName = "Player";
@@ -65,13 +93,22 @@ namespace BaboonTower.Network
 
         // Network properties
         public ConnectionState CurrentState { get; private set; } = ConnectionState.Disconnected;
+        public NetworkMode CurrentMode { get; private set; } = NetworkMode.None;
         public List<PlayerData> ConnectedPlayers { get; private set; } = new List<PlayerData>();
-        public bool IsHost { get; private set; } = false;
+        public bool IsHost => CurrentMode == NetworkMode.Host;
+        public string LocalIPAddress { get; private set; }
 
-        // Network components
+        // Server components (Host mode)
+        private TcpListener server;
+        private Thread serverThread;
+        private List<ConnectedClient> connectedClients = new List<ConnectedClient>();
+        private int nextPlayerId = 1;
+
+        // Client components (Client mode)
         private TcpClient client;
-        private NetworkStream stream;
-        private Thread networkThread;
+        private NetworkStream clientStream;
+        private Thread clientThread;
+
         private bool isRunning = false;
 
         private void Awake()
@@ -81,6 +118,7 @@ namespace BaboonTower.Network
             {
                 Instance = this;
                 DontDestroyOnLoad(gameObject);
+                GetLocalIPAddress();
             }
             else
             {
@@ -94,60 +132,61 @@ namespace BaboonTower.Network
 
         private void OnDestroy()
         {
-            DisconnectFromServer();
+            StopNetworking();
         }
 
         private void OnApplicationQuit()
         {
-            DisconnectFromServer();
+            StopNetworking();
         }
 
         #region Public Methods
 
         /// <summary>
-        /// Tente de se connecter au serveur avec l'IP spécifiée
+        /// Démarre un serveur (mode Host)
         /// </summary>
-        public void ConnectToServer(string serverIP)
+        public void StartServer()
         {
-            if (CurrentState == ConnectionState.Connecting || CurrentState == ConnectionState.Connected)
+            if (CurrentState != ConnectionState.Disconnected)
             {
-                Debug.LogWarning("Déjà connecté ou en cours de connexion");
+                Debug.LogWarning("Network déjà actif");
                 return;
             }
 
-            StartCoroutine(ConnectCoroutine(serverIP, defaultPort));
+            StartCoroutine(StartServerCoroutine());
         }
 
         /// <summary>
-        /// Déconnexion du serveur
+        /// Se connecte à un serveur (mode Client)
         /// </summary>
-        public void DisconnectFromServer()
+        public void ConnectToServer(string serverIP)
+        {
+            if (CurrentState != ConnectionState.Disconnected)
+            {
+                Debug.LogWarning("Network déjà actif");
+                return;
+            }
+
+            StartCoroutine(ConnectToServerCoroutine(serverIP));
+        }
+
+        /// <summary>
+        /// Arrête le networking (serveur ou client)
+        /// </summary>
+        public void StopNetworking()
         {
             isRunning = false;
 
-            try
+            if (CurrentMode == NetworkMode.Host)
             {
-                // Envoyer message de déconnexion si connecté
-                if (CurrentState == ConnectionState.Connected)
-                {
-                    SendMessage("DISCONNECT", playerName);
-                }
-
-                // Fermer les connexions
-                stream?.Close();
-                client?.Close();
+                StopServer();
             }
-            catch (Exception e)
+            else if (CurrentMode == NetworkMode.Client)
             {
-                Debug.LogError($"Erreur lors de la déconnexion: {e.Message}");
+                DisconnectClient();
             }
 
-            // Attendre la fin du thread
-            if (networkThread != null && networkThread.IsAlive)
-            {
-                networkThread.Join(1000);
-            }
-
+            CurrentMode = NetworkMode.None;
             SetConnectionState(ConnectionState.Disconnected);
         }
 
@@ -158,8 +197,40 @@ namespace BaboonTower.Network
         {
             if (CurrentState != ConnectionState.Connected) return;
 
-            string readyStatus = ready ? "true" : "false";
-            SendMessage("PLAYER_READY", readyStatus);
+            if (IsHost)
+            {
+                // Host local
+                var hostPlayer = ConnectedPlayers.FirstOrDefault(p => p.isHost);
+                if (hostPlayer != null)
+                {
+                    hostPlayer.isReady = ready;
+                    BroadcastPlayersUpdate();
+                }
+            }
+            else
+            {
+                // Client
+                SendMessageToServer("PLAYER_READY", ready.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Démarrer la partie (host seulement)
+        /// </summary>
+        public void StartGame()
+        {
+            if (!IsHost || CurrentState != ConnectionState.Connected) return;
+
+            // Vérifier que tous les joueurs sont prêts
+            if (ConnectedPlayers.All(p => p.isReady))
+            {
+                BroadcastMessage("GAME_START", "");
+                OnGameStarted?.Invoke();
+            }
+            else
+            {
+                BroadcastMessage("SERVER_MESSAGE", "Tous les joueurs doivent être prêts !");
+            }
         }
 
         /// <summary>
@@ -171,79 +242,319 @@ namespace BaboonTower.Network
             PlayerPrefs.SetString("PlayerName", playerName);
         }
 
-        /// <summary>
-        /// Demander le lancement de la partie (host seulement)
-        /// </summary>
-        public void StartGame()
+        #endregion
+
+        #region Server Methods (Host)
+
+        private System.Collections.IEnumerator StartServerCoroutine()
         {
-            if (CurrentState != ConnectionState.Connected) return;
-            
-            SendMessage("START_GAME", "");
+            SetConnectionState(ConnectionState.Starting);
+            CurrentMode = NetworkMode.Host;
+
+            yield return new WaitForSeconds(0.1f);
+
+            try
+            {
+                // Créer le serveur TCP
+                server = new TcpListener(IPAddress.Any, defaultPort);
+                server.Start();
+
+                SetConnectionState(ConnectionState.Listening);
+
+                // Ajouter le host à la liste des joueurs
+                var hostPlayer = new PlayerData(playerName, 0, true);
+                ConnectedPlayers.Add(hostPlayer);
+                OnPlayersUpdated?.Invoke(ConnectedPlayers);
+
+                // Démarrer le thread serveur
+                isRunning = true;
+                serverThread = new Thread(ServerLoop);
+                serverThread.Start();
+
+                SetConnectionState(ConnectionState.Connected);
+                Debug.Log($"Serveur démarré sur {LocalIPAddress}:{defaultPort}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Erreur démarrage serveur: {e.Message}");
+                SetConnectionState(ConnectionState.Failed);
+            }
+        }
+
+        private void ServerLoop()
+        {
+            while (isRunning && server != null)
+            {
+                try
+                {
+                    // Accepter de nouvelles connexions
+                    if (server.Pending())
+                    {
+                        TcpClient newClient = server.AcceptTcpClient();
+
+                        if (connectedClients.Count < maxPlayers)
+                        {
+                            var connectedClient = new ConnectedClient(newClient, nextPlayerId++);
+                            connectedClients.Add(connectedClient);
+
+                            // Démarrer le thread pour ce client
+                            connectedClient.clientThread = new Thread(() => HandleClient(connectedClient));
+                            connectedClient.clientThread.Start();
+
+                            Debug.Log($"Nouveau client connecté. Total: {connectedClients.Count}");
+                        }
+                        else
+                        {
+                            // Refuser la connexion (serveur plein)
+                            newClient.Close();
+                        }
+                    }
+
+                    Thread.Sleep(100);
+                }
+                catch (Exception e)
+                {
+                    if (isRunning)
+                    {
+                        Debug.LogError($"Erreur serveur: {e.Message}");
+                    }
+                }
+            }
+        }
+
+        private void HandleClient(ConnectedClient connectedClient)
+        {
+            byte[] buffer = new byte[4096];
+
+            try
+            {
+                while (isRunning && connectedClient.isActive && connectedClient.tcpClient.Connected)
+                {
+                    if (connectedClient.stream.DataAvailable)
+                    {
+                        int bytesRead = connectedClient.stream.Read(buffer, 0, buffer.Length);
+                        if (bytesRead > 0)
+                        {
+                            string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                            ProcessClientMessage(connectedClient, message);
+                        }
+                    }
+
+                    Thread.Sleep(16);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Erreur client: {e.Message}");
+            }
+            finally
+            {
+                RemoveClient(connectedClient);
+            }
+        }
+
+        private void ProcessClientMessage(ConnectedClient client, string message)
+        {
+            try
+            {
+                NetworkMessage netMsg = JsonUtility.FromJson<NetworkMessage>(message);
+
+                UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                {
+                    HandleClientMessage(client, netMsg);
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Erreur parsing message client: {e.Message}");
+            }
+        }
+
+        private void HandleClientMessage(ConnectedClient client, NetworkMessage message)
+        {
+            switch (message.messageType)
+            {
+                case "JOIN_LOBBY":
+                    client.playerData.playerName = message.data;
+
+                    // Ajouter à la liste des joueurs
+                    var playerData = new PlayerData(message.data, client.playerData.playerId);
+                    ConnectedPlayers.Add(playerData);
+
+                    // Envoyer la liste mise à jour à tous
+                    BroadcastPlayersUpdate();
+                    break;
+
+                case "PLAYER_READY":
+                    var player = ConnectedPlayers.FirstOrDefault(p => p.playerId == client.playerData.playerId);
+                    if (player != null)
+                    {
+                        player.isReady = bool.Parse(message.data);
+                        BroadcastPlayersUpdate();
+                    }
+                    break;
+
+                case "DISCONNECT":
+                    RemoveClient(client);
+                    break;
+            }
+        }
+
+        private void RemoveClient(ConnectedClient client)
+        {
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
+            {
+                // Supprimer de la liste des joueurs
+                ConnectedPlayers.RemoveAll(p => p.playerId == client.playerData.playerId);
+
+                // Supprimer de la liste des clients connectés
+                connectedClients.Remove(client);
+
+                // Fermer la connexion
+                try
+                {
+                    client.stream?.Close();
+                    client.tcpClient?.Close();
+                }
+                catch { }
+
+                client.isActive = false;
+
+                // Mettre à jour la liste des joueurs
+                BroadcastPlayersUpdate();
+
+                Debug.Log($"Client déconnecté. Total: {connectedClients.Count}");
+            });
+        }
+
+        private void BroadcastMessage(string messageType, string data)
+        {
+            NetworkMessage message = new NetworkMessage(messageType, data);
+            string json = JsonUtility.ToJson(message);
+            byte[] bytes = Encoding.UTF8.GetBytes(json);
+
+            var clientsToRemove = new List<ConnectedClient>();
+
+            foreach (var client in connectedClients)
+            {
+                try
+                {
+                    if (client.tcpClient.Connected)
+                    {
+                        client.stream.Write(bytes, 0, bytes.Length);
+                        client.stream.Flush();
+                    }
+                    else
+                    {
+                        clientsToRemove.Add(client);
+                    }
+                }
+                catch
+                {
+                    clientsToRemove.Add(client);
+                }
+            }
+
+            // Nettoyer les clients déconnectés
+            foreach (var client in clientsToRemove)
+            {
+                RemoveClient(client);
+            }
+        }
+
+        private void BroadcastPlayersUpdate()
+        {
+            string playersJson = JsonUtility.ToJson(new SerializableList<PlayerData>(ConnectedPlayers));
+            BroadcastMessage("PLAYERS_UPDATE", playersJson);
+            OnPlayersUpdated?.Invoke(ConnectedPlayers);
+        }
+
+        private void StopServer()
+        {
+            try
+            {
+                // Fermer toutes les connexions clients
+                foreach (var client in connectedClients)
+                {
+                    client.isActive = false;
+                    client.stream?.Close();
+                    client.tcpClient?.Close();
+                }
+                connectedClients.Clear();
+
+                // Fermer le serveur
+                server?.Stop();
+
+                // Attendre la fin du thread serveur
+                if (serverThread != null && serverThread.IsAlive)
+                {
+                    serverThread.Join(1000);
+                }
+
+                ConnectedPlayers.Clear();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Erreur arrêt serveur: {e.Message}");
+            }
         }
 
         #endregion
 
-        #region Private Methods
+        #region Client Methods
 
-        private IEnumerator ConnectCoroutine(string serverIP, int port)
+        private System.Collections.IEnumerator ConnectToServerCoroutine(string serverIP)
         {
             SetConnectionState(ConnectionState.Connecting);
+            CurrentMode = NetworkMode.Client;
+
             yield return new WaitForSeconds(0.1f);
 
-            // Exécution de la logique bloquante dans une Task
-            bool success = false;
-            Exception error = null;
+            client = new TcpClient();
+            client.ReceiveTimeout = (int)(connectionTimeout * 1000);
+            client.SendTimeout = (int)(connectionTimeout * 1000);
 
-            var thread = new Thread(() =>
+            var connectTask = client.ConnectAsync(serverIP, defaultPort);
+            float timer = 0f;
+
+            while (!connectTask.IsCompleted && timer < connectionTimeout)
             {
-                try
-                {
-                    client = new TcpClient();
-                    client.ReceiveTimeout = (int)(connectionTimeout * 1000);
-                    client.SendTimeout = (int)(connectionTimeout * 1000);
-
-                    var result = client.BeginConnect(serverIP, port, null, null);
-                    bool connected = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(connectionTimeout));
-
-                    if (!connected || !client.Connected)
-                        throw new Exception("Connexion timeout");
-
-                    stream = client.GetStream();
-                    isRunning = true;
-                    networkThread = new Thread(NetworkLoop);
-                    networkThread.Start();
-
-                    success = true;
-                }
-                catch (Exception ex)
-                {
-                    error = ex;
-                }
-            });
-
-            thread.Start();
-
-            // Attente que le thread ait terminé
-            while (thread.IsAlive)
-                yield return null;
-
-            if (success)
-            {
-                SetConnectionState(ConnectionState.Connected);
-                SendMessage("JOIN_LOBBY", playerName);
-                Debug.Log($"Connecté au serveur {serverIP}:{port}");
+                timer += Time.deltaTime;
+                yield return null;  // <--- en dehors du try
             }
-            else
+
+            try
             {
-                Debug.LogError($"Erreur de connexion: {error?.Message}");
+                if (!connectTask.IsCompleted || !client.Connected)
+                    throw new Exception("Connexion timeout");
+
+                clientStream = client.GetStream();
+                SetConnectionState(ConnectionState.Connected);
+
+                isRunning = true;
+                clientThread = new Thread(ClientLoop);
+                clientThread.Start();
+
+                SendMessageToServer("JOIN_LOBBY", playerName);
+
+                Debug.Log($"Connecté au serveur {serverIP}:{defaultPort}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Erreur connexion client: {e.Message}");
                 SetConnectionState(ConnectionState.Failed);
 
-                try { stream?.Close(); client?.Close(); } catch { }
+                try
+                {
+                    clientStream?.Close();
+                    client?.Close();
+                }
+                catch { }
             }
         }
 
 
-        private void NetworkLoop()
+        private void ClientLoop()
         {
             byte[] buffer = new byte[4096];
 
@@ -251,9 +562,9 @@ namespace BaboonTower.Network
             {
                 try
                 {
-                    if (stream.DataAvailable)
+                    if (clientStream.DataAvailable)
                     {
-                        int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                        int bytesRead = clientStream.Read(buffer, 0, buffer.Length);
                         if (bytesRead > 0)
                         {
                             string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
@@ -261,14 +572,15 @@ namespace BaboonTower.Network
                         }
                     }
 
-                    Thread.Sleep(16); // ~60 FPS
+                    Thread.Sleep(16);
                 }
                 catch (Exception e)
                 {
                     if (isRunning)
                     {
-                        Debug.LogError($"Erreur réseau: {e.Message}");
-                        UnityMainThreadDispatcher.Instance().Enqueue(() => {
+                        Debug.LogError($"Erreur client: {e.Message}");
+                        UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                        {
                             SetConnectionState(ConnectionState.Failed);
                         });
                         break;
@@ -283,13 +595,14 @@ namespace BaboonTower.Network
             {
                 NetworkMessage netMsg = JsonUtility.FromJson<NetworkMessage>(message);
 
-                UnityMainThreadDispatcher.Instance().Enqueue(() => {
+                UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                {
                     HandleServerMessage(netMsg);
                 });
             }
             catch (Exception e)
             {
-                Debug.LogError($"Erreur parsing message: {e.Message}");
+                Debug.LogError($"Erreur parsing message serveur: {e.Message}");
             }
         }
 
@@ -312,10 +625,6 @@ namespace BaboonTower.Network
                 case "DISCONNECT":
                     SetConnectionState(ConnectionState.Disconnected);
                     break;
-
-                default:
-                    Debug.Log($"Message non géré: {message.messageType}");
-                    break;
             }
         }
 
@@ -323,7 +632,8 @@ namespace BaboonTower.Network
         {
             try
             {
-                ConnectedPlayers = JsonUtility.FromJson<List<PlayerData>>(playersData);
+                var listWrapper = JsonUtility.FromJson<SerializableList<PlayerData>>(playersData);
+                ConnectedPlayers = listWrapper.items;
                 OnPlayersUpdated?.Invoke(ConnectedPlayers);
             }
             catch (Exception e)
@@ -332,9 +642,9 @@ namespace BaboonTower.Network
             }
         }
 
-        private void SendMessage(string messageType, string data)
+        private void SendMessageToServer(string messageType, string data)
         {
-            if (CurrentState != ConnectionState.Connected || stream == null)
+            if (CurrentState != ConnectionState.Connected || clientStream == null)
                 return;
 
             try
@@ -343,13 +653,57 @@ namespace BaboonTower.Network
                 string json = JsonUtility.ToJson(message);
                 byte[] bytes = Encoding.UTF8.GetBytes(json);
 
-                stream.Write(bytes, 0, bytes.Length);
-                stream.Flush();
+                clientStream.Write(bytes, 0, bytes.Length);
+                clientStream.Flush();
             }
             catch (Exception e)
             {
                 Debug.LogError($"Erreur envoi message: {e.Message}");
                 SetConnectionState(ConnectionState.Failed);
+            }
+        }
+
+        private void DisconnectClient()
+        {
+            try
+            {
+                if (CurrentState == ConnectionState.Connected)
+                {
+                    SendMessageToServer("DISCONNECT", playerName);
+                }
+
+                clientStream?.Close();
+                client?.Close();
+
+                if (clientThread != null && clientThread.IsAlive)
+                {
+                    clientThread.Join(1000);
+                }
+
+                ConnectedPlayers.Clear();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Erreur déconnexion client: {e.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Utility Methods
+
+        private void GetLocalIPAddress()
+        {
+            try
+            {
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+                LocalIPAddress = host.AddressList
+                    .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+                    ?.ToString() ?? "127.0.0.1";
+            }
+            catch
+            {
+                LocalIPAddress = "127.0.0.1";
             }
         }
 
@@ -365,8 +719,19 @@ namespace BaboonTower.Network
         #endregion
     }
 
+    [System.Serializable]
+    public class SerializableList<T>
+    {
+        public List<T> items;
+
+        public SerializableList(List<T> list)
+        {
+            items = list;
+        }
+    }
+
     /// <summary>
-    /// Utilitaire pour exécuter du code sur le thread principal depuis d'autres threads
+    /// Utilitaire pour exécuter du code sur le thread principal
     /// </summary>
     public class UnityMainThreadDispatcher : MonoBehaviour
     {
