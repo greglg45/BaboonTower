@@ -1,7 +1,24 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\GLIG\\BaboonTower\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{41BCBFFE-6C86-1B85-CD53-65D0166A26E2}|Assembly-CSharp.csproj|C:\\Users\\GLIG\\BaboonTower\\assets\\scripts\\ui\\networkmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41BCBFFE-6C86-1B85-CD53-65D0166A26E2}|Assembly-CSharp.csproj|solutionrelative:assets\\scripts\\ui\\networkmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41BCBFFE-6C86-1B85-CD53-65D0166A26E2}|Assembly-CSharp.csproj|C:\\Users\\GLIG\\BaboonTower\\assets\\scripts\\ui\\lobbycontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41BCBFFE-6C86-1B85-CD53-65D0166A26E2}|Assembly-CSharp.csproj|solutionrelative:assets\\scripts\\ui\\lobbycontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41BCBFFE-6C86-1B85-CD53-65D0166A26E2}|Assembly-CSharp.csproj|c:\\users\\glig\\baboontower\\assets\\scripts\\ui\\mainmenu_controller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41BCBFFE-6C86-1B85-CD53-65D0166A26E2}|Assembly-CSharp.csproj|solutionrelative:assets\\scripts\\ui\\mainmenu_controller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41BCBFFE-6C86-1B85-CD53-65D0166A26E2}|Assembly-CSharp.csproj|C:\\Users\\GLIG\\BaboonTower\\assets\\scripts\\ui\\options_controller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41BCBFFE-6C86-1B85-CD53-65D0166A26E2}|Assembly-CSharp.csproj|solutionrelative:assets\\scripts\\ui\\options_controller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,11 +26,62 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Bookmark",
               "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "mainmenu_controller.cs",
+              "DocumentMoniker": "C:\\Users\\GLIG\\BaboonTower\\Assets\\Scripts\\UI\\mainmenu_controller.cs",
+              "RelativeDocumentMoniker": "Assets\\Scripts\\UI\\mainmenu_controller.cs",
+              "ToolTip": "C:\\Users\\GLIG\\BaboonTower\\Assets\\Scripts\\UI\\mainmenu_controller.cs",
+              "RelativeToolTip": "Assets\\Scripts\\UI\\mainmenu_controller.cs",
+              "ViewState": "AgIAAA0BAAAAAAAAAAAAwCcBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-08T11:01:25.702Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "options_controller.cs",
+              "DocumentMoniker": "C:\\Users\\GLIG\\BaboonTower\\Assets\\Scripts\\UI\\options_controller.cs",
+              "RelativeDocumentMoniker": "Assets\\Scripts\\UI\\options_controller.cs",
+              "ToolTip": "C:\\Users\\GLIG\\BaboonTower\\Assets\\Scripts\\UI\\options_controller.cs",
+              "RelativeToolTip": "Assets\\Scripts\\UI\\options_controller.cs",
+              "ViewState": "AgIAAKEBAAAAAAAAAAAAwLABAAAlAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-08T10:24:16.132Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "LobbyController.cs",
+              "DocumentMoniker": "C:\\Users\\GLIG\\BaboonTower\\Assets\\Scripts\\UI\\LobbyController.cs",
+              "RelativeDocumentMoniker": "Assets\\Scripts\\UI\\LobbyController.cs",
+              "ToolTip": "C:\\Users\\GLIG\\BaboonTower\\Assets\\Scripts\\UI\\LobbyController.cs",
+              "RelativeToolTip": "Assets\\Scripts\\UI\\LobbyController.cs",
+              "ViewState": "AgIAAGkBAAAAAAAAAAAAwJQBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-08T10:22:16.606Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "NetworkManager.cs",
+              "DocumentMoniker": "C:\\Users\\GLIG\\BaboonTower\\Assets\\Scripts\\UI\\NetworkManager.cs",
+              "RelativeDocumentMoniker": "Assets\\Scripts\\UI\\NetworkManager.cs",
+              "ToolTip": "C:\\Users\\GLIG\\BaboonTower\\Assets\\Scripts\\UI\\NetworkManager.cs",
+              "RelativeToolTip": "Assets\\Scripts\\UI\\NetworkManager.cs",
+              "ViewState": "AgIAABkDAAAAAAAAAAAAwEQDAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-08T10:17:09.794Z",
+              "EditorCaption": ""
             }
           ]
         }

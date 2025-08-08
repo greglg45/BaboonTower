@@ -3,6 +3,8 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
 using BaboonTower.Network;
 
 namespace BaboonTower.UI
@@ -31,9 +33,17 @@ namespace BaboonTower.UI
         [SerializeField] private Color notReadyColor = Color.white;
         [SerializeField] private Color hostColor = new Color(1f, 0.8f, 0.2f);
 
-        // State
+        [Header("Chat")]
+        [SerializeField] private TMP_InputField chatInput;
+        [SerializeField] private Button chatSendButton;
+        [SerializeField] private TextMeshProUGUI chatLogText;
+        [SerializeField] private ScrollRect chatScrollRect;
+
+        // State local UI
         private bool isPlayerReady = false;
         private List<GameObject> playerItems = new List<GameObject>();
+
+        private NetworkManager Net => NetworkManager.Instance;
 
         private void Start()
         {
@@ -47,67 +57,64 @@ namespace BaboonTower.UI
             RemoveEventListeners();
         }
 
-        #region Initialization
+        #region Init & Events
 
         private void InitializeLobby()
         {
-            // Configuration des boutons
-            readyButton.onClick.AddListener(ToggleReady);
-            startGameButton.onClick.AddListener(StartGame);
-            stopServerButton.onClick.AddListener(StopServer);
-            disconnectButton.onClick.AddListener(Disconnect);
-            backToMenuButton.onClick.AddListener(BackToMenu);
+            // Boutons existants
+            if (readyButton) readyButton.onClick.AddListener(ToggleReady);
+            if (startGameButton) startGameButton.onClick.AddListener(StartGame);
+            if (stopServerButton) stopServerButton.onClick.AddListener(StopServer);
+            if (disconnectButton) disconnectButton.onClick.AddListener(Disconnect);
+            if (backToMenuButton) backToMenuButton.onClick.AddListener(BackToMenu);
 
-            // État initial
+            // Chat
+            if (chatSendButton) chatSendButton.onClick.AddListener(SendChat);
+            if (chatInput) chatInput.onSubmit.AddListener(_ => { SendChat(); });
+
             UpdateUI();
         }
 
         private void SetupEventListeners()
         {
-            // Écouter les événements réseau
-            NetworkManager.OnConnectionStateChanged += OnConnectionStateChanged;
-            NetworkManager.OnPlayersUpdated += OnPlayersUpdated;
-            NetworkManager.OnServerMessage += OnServerMessage;
-            NetworkManager.OnGameStarted += OnGameStarted;
+            if (Net == null) return;
+
+            // Abonnements **d’instance** (pas statiques)
+            Net.OnConnectionStateChanged += OnConnectionStateChanged;
+            Net.OnPlayersUpdated += OnPlayersUpdated;
+            Net.OnServerMessage += OnServerMessage;
+            Net.OnGameStarted += OnGameStarted;
+            Net.OnChatMessage += OnChatMessageReceived;
         }
 
         private void RemoveEventListeners()
         {
-            // Nettoyer les événements
-            if (NetworkManager.Instance != null)
-            {
-                NetworkManager.OnConnectionStateChanged -= OnConnectionStateChanged;
-                NetworkManager.OnPlayersUpdated -= OnPlayersUpdated;
-                NetworkManager.OnServerMessage -= OnServerMessage;
-                NetworkManager.OnGameStarted -= OnGameStarted;
-            }
+            if (Net == null) return;
+
+            Net.OnConnectionStateChanged -= OnConnectionStateChanged;
+            Net.OnPlayersUpdated -= OnPlayersUpdated;
+            Net.OnServerMessage -= OnServerMessage;
+            Net.OnGameStarted -= OnGameStarted;
+            Net.OnChatMessage -= OnChatMessageReceived;
         }
 
         #endregion
 
-        #region UI Management
+        #region UI refresh
 
         private void UpdateUI()
         {
-            if (NetworkManager.Instance == null) return;
+            if (Net == null) return;
 
-            ConnectionState state = NetworkManager.Instance.CurrentState;
-            NetworkMode mode = NetworkManager.Instance.CurrentMode;
+            var state = Net.CurrentState;
+            var mode = Net.CurrentMode;
 
-            // Mise à jour du statut de connexion
             UpdateConnectionStatus(state, mode);
-
-            // Mise à jour des boutons
             UpdateButtons(state, mode);
-
-            // Mise à jour du titre et info serveur
             UpdateLobbyInfo(mode);
 
-            // Mise à jour de la liste des joueurs
-            if (NetworkManager.Instance.ConnectedPlayers.Count > 0)
-            {
-                UpdatePlayersList(NetworkManager.Instance.ConnectedPlayers);
-            }
+            if (Net.ConnectedPlayers.Count > 0)
+                UpdatePlayersList(Net.ConnectedPlayers);
         }
 
         private void UpdateConnectionStatus(ConnectionState state, NetworkMode mode)
@@ -117,207 +124,201 @@ namespace BaboonTower.UI
             switch (state)
             {
                 case ConnectionState.Disconnected:
-                    connectionStatusText.text = "Déconnecté";
-                    connectionStatusText.color = disconnectedColor;
+                    if (connectionStatusText) { connectionStatusText.text = "Déconnecté"; connectionStatusText.color = disconnectedColor; }
                     break;
 
-                case ConnectionState.Starting:
-                    connectionStatusText.text = "Démarrage...";
-                    connectionStatusText.color = listeningColor;
-                    break;
-
-                case ConnectionState.Listening:
-                    connectionStatusText.text = "En attente de joueurs" + modeText;
-                    connectionStatusText.color = listeningColor;
-                    break;
-
+                // Ancien 'Starting'/'Listening' retirés : on affiche quelque chose d’équivalent en 'Connecting'
                 case ConnectionState.Connecting:
-                    connectionStatusText.text = "Connexion en cours...";
-                    connectionStatusText.color = listeningColor;
+                    if (connectionStatusText)
+                    {
+                        if (mode == NetworkMode.Host)
+                        {
+                            connectionStatusText.text = "Serveur en attente de joueurs...";
+                            connectionStatusText.color = listeningColor;
+                        }
+                        else
+                        {
+                            connectionStatusText.text = "Connexion en cours...";
+                            connectionStatusText.color = listeningColor;
+                        }
+                    }
                     break;
 
                 case ConnectionState.Connected:
-                    connectionStatusText.text = "Connecté" + modeText;
-                    connectionStatusText.color = connectedColor;
+                    if (connectionStatusText) { connectionStatusText.text = "Connecté" + modeText; connectionStatusText.color = connectedColor; }
                     break;
 
                 case ConnectionState.Failed:
-                    connectionStatusText.text = "Connexion échouée";
-                    connectionStatusText.color = disconnectedColor;
+                    if (connectionStatusText) { connectionStatusText.text = "Connexion échouée"; connectionStatusText.color = disconnectedColor; }
                     break;
             }
         }
 
         private void UpdateButtons(ConnectionState state, NetworkMode mode)
         {
-            bool isConnected = (state == ConnectionState.Connected || state == ConnectionState.Listening);
             bool isHost = (mode == NetworkMode.Host);
 
-            // Boutons disponibles selon le mode et l'état
-            readyButton.gameObject.SetActive(isConnected);
-            startGameButton.gameObject.SetActive(isConnected && isHost);
-            stopServerButton.gameObject.SetActive(isHost && (state != ConnectionState.Disconnected));
-            disconnectButton.gameObject.SetActive(!isHost && isConnected);
+            if (startGameButton) startGameButton.gameObject.SetActive(isHost);
+            if (stopServerButton) stopServerButton.gameObject.SetActive(isHost);
+            if (disconnectButton) disconnectButton.gameObject.SetActive(!isHost);
 
-            // Mise à jour du bouton Ready
+            if (readyButton) readyButton.gameObject.SetActive(!isHost);
             UpdateReadyButton();
-        }
-
-        private void UpdateLobbyInfo(NetworkMode mode)
-        {
-            int playerCount = NetworkManager.Instance.ConnectedPlayers.Count;
-
-            if (mode == NetworkMode.Host)
-            {
-                lobbyTitleText.text = $"Lobby Baboon Tower - Serveur ({playerCount} joueurs)";
-                serverInfoText.text = $"IP du serveur: {NetworkManager.Instance.LocalIPAddress}:7777\nDonnez cette adresse aux autres joueurs";
-            }
-            else
-            {
-                lobbyTitleText.text = $"Lobby Baboon Tower - Client ({playerCount} joueurs)";
-                serverInfoText.text = "Connecté au serveur";
-            }
         }
 
         private void UpdateReadyButton()
         {
-            if (NetworkManager.Instance.CurrentState != ConnectionState.Connected &&
-                NetworkManager.Instance.CurrentState != ConnectionState.Listening) return;
+            if (!readyButton) return;
 
-            var buttonImage = readyButton.GetComponent<Image>();
             var buttonText = readyButton.GetComponentInChildren<TextMeshProUGUI>();
+            var buttonImage = readyButton.GetComponent<Image>();
 
-            if (isPlayerReady)
+            if (buttonText) buttonText.text = isPlayerReady ? "Prêt ✓" : "Pas prêt";
+            if (buttonImage) buttonImage.color = isPlayerReady ? readyColor : notReadyColor;
+        }
+
+        private void UpdateLobbyInfo(NetworkMode mode)
+        {
+            if (lobbyTitleText)
+                lobbyTitleText.text = mode == NetworkMode.Host ? "Lobby (Serveur)" : "Lobby (Client)";
+
+            if (serverInfoText && Net != null)
             {
-                buttonText.text = "Prêt ✓";
-                buttonImage.color = readyColor;
-            }
-            else
-            {
-                buttonText.text = "Pas prêt";
-                buttonImage.color = notReadyColor;
+                if (mode == NetworkMode.Host)
+                {
+                    serverInfoText.text = $"IP: {GetLocalIPAddress()}:{Net.CurrentPort}";
+                }
+                else
+                {
+                    serverInfoText.text = "";
+                }
             }
         }
 
         #endregion
 
-        #region Players List Management
+        #region Players list
 
         private void UpdatePlayersList(List<PlayerData> players)
         {
-            // Nettoyer la liste existante
             ClearPlayersList();
-
-            // Créer les nouveaux éléments
-            foreach (PlayerData player in players)
-            {
-                CreatePlayerItem(player);
-            }
-
-            // Mettre à jour le titre
-            UpdateLobbyInfo(NetworkManager.Instance.CurrentMode);
+            foreach (var p in players) CreatePlayerItem(p);
+            UpdateLobbyInfo(Net.CurrentMode);
         }
 
         private void ClearPlayersList()
         {
-            foreach (GameObject item in playerItems)
-            {
-                if (item != null)
-                {
-                    Destroy(item);
-                }
-            }
+            foreach (var go in playerItems) if (go) Destroy(go);
             playerItems.Clear();
         }
 
         private void CreatePlayerItem(PlayerData player)
         {
-            if (playerItemPrefab == null || playersListParent == null) return;
+            if (!playerItemPrefab || !playersListParent) return;
 
-            GameObject playerItem = Instantiate(playerItemPrefab, playersListParent);
-            playerItems.Add(playerItem);
+            var item = Instantiate(playerItemPrefab, playersListParent);
+            playerItems.Add(item);
 
-            // Configurer l'affichage du joueur
-            var nameText = playerItem.GetComponentInChildren<TextMeshProUGUI>();
-            var backgroundImage = playerItem.GetComponent<Image>();
+            var nameText = item.GetComponentInChildren<TextMeshProUGUI>();
+            var bg = item.GetComponent<Image>();
 
-            if (nameText != null)
+            if (nameText)
             {
-                string playerName = player.playerName;
-                if (player.isHost) playerName += " (Serveur)";
-                if (player.isReady) playerName += " ✓";
-
-                nameText.text = playerName;
+                string pName = player.playerName;
+                if (player.isHost) pName += " (Serveur)";
+                if (player.isReady) pName += " ✓";
+                nameText.text = pName;
             }
 
-            if (backgroundImage != null)
+            if (bg)
             {
-                if (player.isHost)
-                    backgroundImage.color = hostColor;
-                else if (player.isReady)
-                    backgroundImage.color = readyColor;
-                else
-                    backgroundImage.color = notReadyColor;
+                if (player.isHost) bg.color = hostColor;
+                else if (player.isReady) bg.color = readyColor;
+                else bg.color = notReadyColor;
             }
         }
 
         #endregion
 
-        #region Button Events
+        #region Buttons handlers
 
         private void ToggleReady()
         {
+            // Ancien appel NetworkManager.SetPlayerReady(...) n’existe pas.
+            // On tient l’état localement pour l’UI (TODO : exposer une API côté NetworkManager si tu veux sync côté serveur).
             isPlayerReady = !isPlayerReady;
-            NetworkManager.Instance.SetPlayerReady(isPlayerReady);
             UpdateReadyButton();
         }
 
         private void StartGame()
         {
-            if (NetworkManager.Instance.IsHost)
-            {
-                NetworkManager.Instance.StartGame();
-            }
+            // Ancien NetworkManager.StartGame() n’existe pas.
+            // TODO : ajouter une méthode publique côté NetworkManager/host si tu veux démarrer la partie depuis le lobby.
+            Debug.Log("[Lobby] StartGame demandé (TODO: implémenter côté NetworkManager si nécessaire).");
         }
 
         private void StopServer()
         {
-            if (NetworkManager.Instance.IsHost)
+            if (Net != null && Net.CurrentMode == NetworkMode.Host)
             {
-                NetworkManager.Instance.StopNetworking();
+                Net.StopNetworking();
                 BackToMenu();
             }
         }
 
         private void Disconnect()
         {
-            if (!NetworkManager.Instance.IsHost)
+            if (Net != null && Net.CurrentMode == NetworkMode.Client)
             {
-                NetworkManager.Instance.StopNetworking();
+                Net.StopNetworking();
                 BackToMenu();
             }
         }
 
         private void BackToMenu()
         {
-            // Arrêter le réseau s'il est encore actif
-            if (NetworkManager.Instance.CurrentState != ConnectionState.Disconnected)
-            {
-                NetworkManager.Instance.StopNetworking();
-            }
+            if (Net != null && Net.CurrentState != ConnectionState.Disconnected)
+                Net.StopNetworking();
 
             SceneManager.LoadScene("MainMenu");
         }
 
-        private void ShowMessage(string message)
+        #endregion
+
+        #region Chat
+
+        private void SendChat()
         {
-            Debug.Log($"Message: {message}");
-            // TODO: Implémenter un système de notification UI
+            if (!chatInput) return;
+            string text = chatInput.text;
+            chatInput.text = string.Empty;
+            Net?.SendChatMessage(text);
+            chatInput.ActivateInputField();
+        }
+
+        private void OnChatMessageReceived(string author, string message)
+        {
+            AppendChatLine(author, message);
+        }
+
+        private void AppendChatLine(string author, string message)
+        {
+            if (!chatLogText) return;
+
+            string ts = System.DateTime.Now.ToString("HH:mm");
+            chatLogText.text += $"[{ts}] <b>{author}</b>: {message}\n";
+
+            if (chatScrollRect)
+            {
+                Canvas.ForceUpdateCanvases();
+                chatScrollRect.verticalNormalizedPosition = 0f;
+                Canvas.ForceUpdateCanvases();
+            }
         }
 
         #endregion
 
-        #region Network Events
+        #region Net events
 
         private void OnConnectionStateChanged(ConnectionState newState)
         {
@@ -327,30 +328,39 @@ namespace BaboonTower.UI
             {
                 isPlayerReady = false;
 
-                // Si on est déconnecté de manière inattendue, revenir au menu
-                if (newState == ConnectionState.Disconnected && NetworkManager.Instance.CurrentMode == NetworkMode.Client)
+                if (newState == ConnectionState.Disconnected && Net.CurrentMode == NetworkMode.Client)
                 {
-                    ShowMessage("Déconnecté du serveur");
-                    Invoke(nameof(BackToMenu), 2f); // Délai pour voir le message
+                    Debug.Log("Déconnecté du serveur");
+                    Invoke(nameof(BackToMenu), 1.5f);
                 }
             }
         }
 
-        private void OnPlayersUpdated(List<PlayerData> players)
-        {
-            UpdatePlayersList(players);
-        }
-
-        private void OnServerMessage(string message)
-        {
-            ShowMessage($"Serveur: {message}");
-        }
+        private void OnPlayersUpdated(List<PlayerData> players) => UpdatePlayersList(players);
+        private void OnServerMessage(string message) => AppendChatLine("Serveur", message);
 
         private void OnGameStarted()
         {
-            Debug.Log("Lancement de la partie !");
-            // TODO: SceneManager.LoadScene("GameScene");
-            ShowMessage("Lancement de la partie ! (GameScene pas encore implémentée)");
+            // Si tu déclenches un event côté NetworkManager, on peut charger ici.
+            SceneManager.LoadScene("GameScene");
+        }
+
+        #endregion
+
+        #region Helpers
+
+        // Remplace l’ancien appel à NetworkManager.LocalIPAddress
+        private string GetLocalIPAddress()
+        {
+            try
+            {
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                    if (ip.AddressFamily == AddressFamily.InterNetwork)
+                        return ip.ToString();
+            }
+            catch { }
+            return "127.0.0.1";
         }
 
         #endregion
