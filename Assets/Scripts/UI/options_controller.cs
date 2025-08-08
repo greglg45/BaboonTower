@@ -274,8 +274,6 @@ namespace BaboonTower.UI
             AudioListener.volume = isMuted ? 0f : masterVolume;
 
             // TODO: Appliquer aux AudioMixers spécifiques si utilisés
-            // musicAudioMixer.SetFloat("MusicVolume", Mathf.Log10(musicVolume) * 20);
-            // sfxAudioMixer.SetFloat("SFXVolume", Mathf.Log10(sfxVolume) * 20);
         }
 
         private void OnMasterVolumeChanged(float value)
@@ -442,25 +440,16 @@ namespace BaboonTower.UI
 
         #region Public Methods (for MainMenu integration)
 
-        /// <summary>
-        /// Récupérer l'IP du serveur configurée
-        /// </summary>
         public string GetServerIP()
         {
             return PlayerPrefs.GetString("ServerIP", DEFAULT_SERVER_IP);
         }
 
-        /// <summary>
-        /// Récupérer le port du serveur configuré
-        /// </summary>
         public int GetServerPort()
         {
             return PlayerPrefs.GetInt("ServerPort", DEFAULT_SERVER_PORT);
         }
 
-        /// <summary>
-        /// Récupérer le nom du joueur configuré
-        /// </summary>
         public string GetPlayerName()
         {
             return PlayerPrefs.GetString("PlayerName", DEFAULT_PLAYER_NAME);
@@ -468,4 +457,4 @@ namespace BaboonTower.UI
 
         #endregion
     }
-}       
+}

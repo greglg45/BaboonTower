@@ -3,6 +3,8 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
 using BaboonTower.Network;
+using System.Net;            // <-- pour GetLocalIPAddress
+using System.Net.Sockets;    // <-- pour AddressFamily
 
 namespace BaboonTower.UI
 {
@@ -53,13 +55,11 @@ namespace BaboonTower.UI
 
         private void InitializeMainMenu()
         {
-            // Configurer les événements des boutons principaux
             hostGameButton.onClick.AddListener(ShowHostPanel);
             joinGameButton.onClick.AddListener(ShowJoinPanel);
             optionsButton.onClick.AddListener(OnOptionsClick);
             quitButton.onClick.AddListener(OnQuitClick);
 
-            // Configurer les panneaux
             startHostButton.onClick.AddListener(StartHostGame);
             cancelHostButton.onClick.AddListener(HideAllPanels);
 
@@ -68,49 +68,48 @@ namespace BaboonTower.UI
 
             cancelStatusButton.onClick.AddListener(CancelNetworkAction);
 
-            // Ajouter les effets de survol
             AddHoverEffect(hostGameButton);
             AddHoverEffect(joinGameButton);
             AddHoverEffect(optionsButton);
             AddHoverEffect(quitButton);
 
-            // Charger les paramètres sauvegardés
             LoadSettings();
-
-            // Cacher tous les panneaux au départ
             HideAllPanels();
         }
 
         private void LoadSettings()
         {
-            // Charger les paramètres sauvegardés
             string savedPlayerName = PlayerPrefs.GetString("PlayerName", "Player" + UnityEngine.Random.Range(1000, 9999));
             string savedServerIP = PlayerPrefs.GetString("ServerIP", "127.0.0.1");
 
-            if (hostPlayerNameInput != null)
-                hostPlayerNameInput.text = savedPlayerName;
+            if (hostPlayerNameInput != null) hostPlayerNameInput.text = savedPlayerName;
+            if (joinPlayerNameInput != null) joinPlayerNameInput.text = savedPlayerName;
+            if (serverIPInput != null) serverIPInput.text = savedServerIP;
 
-            if (joinPlayerNameInput != null)
-                joinPlayerNameInput.text = savedPlayerName;
+            // Afficher l’IP locale pour le host (pas de LocalIPAddress dans NetworkManager)
+            if (serverIPText != null)
+            {
+                int port = (NetworkManager.Instance != null)
+                    ? NetworkManager.Instance.CurrentPort
+                    : PlayerPrefs.GetInt("ServerPort", 7777);
 
-            if (serverIPInput != null)
-                serverIPInput.text = savedServerIP;
-
-            // Afficher l'IP locale pour le host
-            if (serverIPText != null && NetworkManager.Instance != null)
-                serverIPText.text = $"IP du serveur: {NetworkManager.Instance.LocalIPAddress}:7777";
+                serverIPText.text = $"IP du serveur: {GetLocalIPAddress()}:{port}";
+            }
         }
 
         private void SetupNetworkEvents()
         {
-            NetworkManager.OnConnectionStateChanged += OnNetworkStateChanged;
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.OnConnectionStateChanged += OnNetworkStateChanged; // <-- via Instance
+            }
         }
 
         private void RemoveNetworkEvents()
         {
             if (NetworkManager.Instance != null)
             {
-                NetworkManager.OnConnectionStateChanged -= OnNetworkStateChanged;
+                NetworkManager.Instance.OnConnectionStateChanged -= OnNetworkStateChanged; // <-- via Instance
             }
         }
 
@@ -121,9 +120,15 @@ namespace BaboonTower.UI
             HideAllPanels();
             hostPanel?.SetActive(true);
 
-            // Mettre à jour l'IP du serveur
-            if (serverIPText != null && NetworkManager.Instance != null)
-                serverIPText.text = $"IP du serveur: {NetworkManager.Instance.LocalIPAddress}:7777";
+            // Mettre à jour l'IP du serveur (sans LocalIPAddress du manager)
+            if (serverIPText != null)
+            {
+                int port = (NetworkManager.Instance != null)
+                    ? NetworkManager.Instance.CurrentPort
+                    : PlayerPrefs.GetInt("ServerPort", 7777);
+
+                serverIPText.text = $"IP du serveur: {GetLocalIPAddress()}:{port}";
+            }
         }
 
         private void ShowJoinPanel()
@@ -136,8 +141,7 @@ namespace BaboonTower.UI
         {
             HideAllPanels();
             statusPanel?.SetActive(true);
-            if (statusText != null)
-                statusText.text = message;
+            if (statusText != null) statusText.text = message;
         }
 
         private void HideAllPanels()
@@ -161,11 +165,9 @@ namespace BaboonTower.UI
                 return;
             }
 
-            // Sauvegarder le nom
             PlayerPrefs.SetString("PlayerName", playerName);
             NetworkManager.Instance.SetPlayerName(playerName);
 
-            // Démarrer le serveur
             ShowStatusPanel("Démarrage du serveur...");
             NetworkManager.Instance.StartServer();
         }
@@ -187,19 +189,20 @@ namespace BaboonTower.UI
                 return;
             }
 
-            // Sauvegarder les paramètres
             PlayerPrefs.SetString("PlayerName", playerName);
             PlayerPrefs.SetString("ServerIP", serverIP);
             NetworkManager.Instance.SetPlayerName(playerName);
 
-            // Se connecter au serveur
             ShowStatusPanel("Connexion au serveur...");
             NetworkManager.Instance.ConnectToServer(serverIP);
         }
 
         private void CancelNetworkAction()
         {
-            NetworkManager.Instance.StopNetworking();
+            if (NetworkManager.Instance != null)
+            {
+                NetworkManager.Instance.StopNetworking();
+            }
             HideAllPanels();
         }
 
@@ -211,13 +214,27 @@ namespace BaboonTower.UI
         {
             switch (newState)
             {
-                case ConnectionState.Listening:
-                    ShowStatusPanel("Serveur en attente de joueurs...\nLes joueurs peuvent se connecter sur:\n" +
-                                  NetworkManager.Instance.LocalIPAddress + ":7777");
-                    break;
+                // Remplace l’ancien 'Listening' par une logique basée sur l’état existant
+                case ConnectionState.Connecting:
+                    {
+                        // Si on est en host pendant le boot serveur, afficher l’info IP
+                        if (NetworkManager.Instance != null && NetworkManager.Instance.CurrentMode == NetworkMode.Host)
+                        {
+                            int port = NetworkManager.Instance.CurrentPort;
+                            ShowStatusPanel(
+                                "Serveur en attente de joueurs...\nLes joueurs peuvent se connecter sur:\n" +
+                                GetLocalIPAddress() + ":" + port
+                            );
+                        }
+                        else
+                        {
+                            ShowStatusPanel("Connexion en cours...");
+                        }
+                        break;
+                    }
 
                 case ConnectionState.Connected:
-                    // Aller directement au lobby
+                    // Aller au lobby une fois connecté (host ou client)
                     SceneManager.LoadScene("Lobby");
                     break;
 
@@ -273,21 +290,19 @@ namespace BaboonTower.UI
         private void DisplayVersion()
         {
             string version = VersionManager.GetVersion();
-            versionText.text = $"Version {version}";
+            if (versionText != null)
+                versionText.text = $"Version {version}";
         }
 
         private void OnOptionsClick()
         {
             Debug.Log("Options clicked - TODO: Implement options modal");
-            // TODO: Ouvrir une fenêtre modale avec les réglages
-            // Possiblement instancier un prefab d'options ou activer un panel caché
         }
 
         private void OnQuitClick()
         {
             Debug.Log("Quit application");
 
-            // S'assurer de fermer le réseau avant de quitter
             if (NetworkManager.Instance != null)
             {
                 NetworkManager.Instance.StopNetworking();
@@ -296,8 +311,28 @@ namespace BaboonTower.UI
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else
-                Application.Quit();
+            Application.Quit();
 #endif
+        }
+
+        #endregion
+
+        #region Helpers
+
+        // Remplace l’appel à NetworkManager.LocalIPAddress (absent)
+        private string GetLocalIPAddress()
+        {
+            try
+            {
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == AddressFamily.InterNetwork)
+                        return ip.ToString();
+                }
+            }
+            catch { }
+            return "127.0.0.1";
         }
 
         #endregion
