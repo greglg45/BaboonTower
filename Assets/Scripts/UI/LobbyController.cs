@@ -49,6 +49,7 @@ namespace BaboonTower.UI
         {
             InitializeLobby();
             SetupEventListeners();
+            Net?.HostTryStartGame();
             UpdateUI();
         }
 
@@ -244,18 +245,18 @@ namespace BaboonTower.UI
 
         private void ToggleReady()
         {
-            // Ancien appel NetworkManager.SetPlayerReady(...) n’existe pas.
-            // On tient l’état localement pour l’UI (TODO : exposer une API côté NetworkManager si tu veux sync côté serveur).
             isPlayerReady = !isPlayerReady;
+            Net?.SetLocalReady(isPlayerReady); // <-- ajout
             UpdateReadyButton();
         }
 
+
         private void StartGame()
         {
-            // Ancien NetworkManager.StartGame() n’existe pas.
-            // TODO : ajouter une méthode publique côté NetworkManager/host si tu veux démarrer la partie depuis le lobby.
-            Debug.Log("[Lobby] StartGame demandé (TODO: implémenter côté NetworkManager si nécessaire).");
+            // côté host: on délègue la logique au NetworkManager
+            Net?.HostTryStartGame();
         }
+
 
         private void StopServer()
         {

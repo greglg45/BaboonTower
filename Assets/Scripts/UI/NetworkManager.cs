@@ -668,7 +668,25 @@ namespace BaboonTower.Network
         }
 
         #endregion
+        public void SetLocalReady(bool ready)
+        {
+            if (CurrentState != ConnectionState.Connected) return;
 
+            if (CurrentMode == NetworkMode.Client)
+            {
+                SendMessageToServer("PLAYER_READY", ready.ToString());
+            }
+            else if (CurrentMode == NetworkMode.Host)
+            {
+                var me = ConnectedPlayers.FirstOrDefault(p => p.isHost);
+                if (me != null)
+                {
+                    me.isReady = ready;
+                    BroadcastPlayersUpdate();
+                }
+            }
+        }
+    
         #region Utils
 
         private void SetConnectionState(ConnectionState newState)
@@ -687,6 +705,28 @@ namespace BaboonTower.Network
             text = text.Trim();
             if (text.Length > 200) text = text.Substring(0, 200);
             return text;
+        }
+        public void HostTryStartGame()
+        {
+            // Ne fonctionne que pour l'hôte connecté
+            if (CurrentMode != NetworkMode.Host || CurrentState != ConnectionState.Connected) return;
+
+            // Considérer l'hôte comme prêt au moment de lancer
+            var host = ConnectedPlayers.FirstOrDefault(p => p.isHost);
+            if (host != null) host.isReady = true;
+
+            // Si quelqu'un n'est pas prêt -> avertir tout le monde dans le chat (broadcast)
+            if (ConnectedPlayers.Any(p => !p.isReady))
+            {
+                // Envoi aux clients + affichage local
+                BroadcastMessage("SERVER_MESSAGE", "⚠️ Tous les joueurs ne sont pas prêts !");
+                OnServerMessage?.Invoke("⚠️ Tous les joueurs ne sont pas prêts !");
+                return;
+            }
+
+            // Sinon: démarrer la partie (broadcast + callback local)
+            BroadcastMessage("GAME_START", "");
+            OnGameStarted?.Invoke();
         }
 
         #endregion
