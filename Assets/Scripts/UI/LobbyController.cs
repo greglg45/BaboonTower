@@ -49,7 +49,6 @@ namespace BaboonTower.UI
         {
             InitializeLobby();
             SetupEventListeners();
-            Net?.HostTryStartGame();
             UpdateUI();
         }
 
@@ -80,7 +79,7 @@ namespace BaboonTower.UI
         {
             if (Net == null) return;
 
-            // Abonnements **d’instance** (pas statiques)
+            // Abonnements **d'instance** (pas statiques)
             Net.OnConnectionStateChanged += OnConnectionStateChanged;
             Net.OnPlayersUpdated += OnPlayersUpdated;
             Net.OnServerMessage += OnServerMessage;
@@ -128,7 +127,6 @@ namespace BaboonTower.UI
                     if (connectionStatusText) { connectionStatusText.text = "Déconnecté"; connectionStatusText.color = disconnectedColor; }
                     break;
 
-                // Ancien 'Starting'/'Listening' retirés : on affiche quelque chose d’équivalent en 'Connecting'
                 case ConnectionState.Connecting:
                     if (connectionStatusText)
                     {
@@ -174,8 +172,8 @@ namespace BaboonTower.UI
             var buttonText = readyButton.GetComponentInChildren<TextMeshProUGUI>();
             var buttonImage = readyButton.GetComponent<Image>();
 
-            if (buttonText) buttonText.text = isPlayerReady ? "Prêt ✓" : "Pas prêt";
-            if (buttonImage) buttonImage.color = isPlayerReady ? readyColor : notReadyColor;
+            if (buttonText) buttonText.text = isPlayerReady ? "Pas prêt" : "Prêt ✓";
+            if (buttonImage) buttonImage.color = isPlayerReady ? notReadyColor : readyColor;
         }
 
         private void UpdateLobbyInfo(NetworkMode mode)
@@ -203,13 +201,22 @@ namespace BaboonTower.UI
         private void UpdatePlayersList(List<PlayerData> players)
         {
             ClearPlayersList();
-            foreach (var p in players) CreatePlayerItem(p);
-            UpdateLobbyInfo(Net.CurrentMode);
+            foreach (var p in players)
+            {
+                CreatePlayerItem(p);
+            }
+
+            // Forcer la mise à jour du layout après avoir créé tous les items
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(playersListParent as RectTransform);
         }
 
         private void ClearPlayersList()
         {
-            foreach (var go in playerItems) if (go) Destroy(go);
+            foreach (var go in playerItems)
+            {
+                if (go) Destroy(go);
+            }
             playerItems.Clear();
         }
 
@@ -220,23 +227,68 @@ namespace BaboonTower.UI
             var item = Instantiate(playerItemPrefab, playersListParent);
             playerItems.Add(item);
 
-            var nameText = item.GetComponentInChildren<TextMeshProUGUI>();
-            var bg = item.GetComponent<Image>();
+            // Chercher spécifiquement le TextMeshPro avec le nom "PlayerNameText"
+            var nameTextComponent = item.transform.Find("Background/PlayerNameText");
+            TextMeshProUGUI nameText = null;
 
+            if (nameTextComponent != null)
+            {
+                nameText = nameTextComponent.GetComponent<TextMeshProUGUI>();
+            }
+            else
+            {
+                // Fallback: chercher dans tous les enfants
+                nameText = item.GetComponentInChildren<TextMeshProUGUI>();
+            }
+
+            // Chercher le background spécifiquement
+            var backgroundComponent = item.transform.Find("Background");
+            Image bg = null;
+
+            if (backgroundComponent != null)
+            {
+                bg = backgroundComponent.GetComponent<Image>();
+            }
+            else
+            {
+                // Fallback: prendre le premier Image trouvé
+                bg = item.GetComponent<Image>();
+            }
+
+            // Mise à jour du texte et des couleurs
             if (nameText)
             {
-                string pName = player.playerName;
-                if (player.isHost) pName += " (Serveur)";
-                if (player.isReady) pName += " ✓";
-                nameText.text = pName;
+                string displayName = player.playerName;
+                if (player.isHost) displayName += " (Serveur)";
+                if (player.isReady) displayName += " ✓";
+
+                nameText.text = displayName;
+
+                // S'assurer que le texte est visible
+                nameText.color = Color.white;
             }
 
+            // Gestion améliorée des couleurs de background
             if (bg)
             {
-                if (player.isHost) bg.color = hostColor;
-                else if (player.isReady) bg.color = readyColor;
-                else bg.color = notReadyColor;
+                if (player.isHost)
+                {
+                    bg.color = new Color(hostColor.r, hostColor.g, hostColor.b, 1f); // Alpha à 1 pour être visible
+                }
+                else if (player.isReady)
+                {
+                    bg.color = new Color(readyColor.r, readyColor.g, readyColor.b, 0.8f);
+                }
+                else
+                {
+                    bg.color = new Color(notReadyColor.r, notReadyColor.g, notReadyColor.b, 0.3f);
+                }
             }
+
+            // S'assurer que l'item est actif
+            item.SetActive(true);
+
+            Debug.Log($"Created player item for: {player.playerName}, Ready: {player.isReady}, Host: {player.isHost}");
         }
 
         #endregion
@@ -246,17 +298,15 @@ namespace BaboonTower.UI
         private void ToggleReady()
         {
             isPlayerReady = !isPlayerReady;
-            Net?.SetLocalReady(isPlayerReady); // <-- ajout
+            Net?.SetLocalReady(isPlayerReady);
             UpdateReadyButton();
         }
 
-
         private void StartGame()
         {
-            // côté host: on délègue la logique au NetworkManager
+            // Côté host: on délègue la logique au NetworkManager
             Net?.HostTryStartGame();
         }
-
 
         private void StopServer()
         {
@@ -350,7 +400,7 @@ namespace BaboonTower.UI
 
         #region Helpers
 
-        // Remplace l’ancien appel à NetworkManager.LocalIPAddress
+        // Remplace l'ancien appel à NetworkManager.LocalIPAddress
         private string GetLocalIPAddress()
         {
             try
