@@ -370,7 +370,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 680922839}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fa36e98a0dbbf2247b1b26a51a2c1551, type: 3}
   m_Name: 
@@ -867,6 +867,8 @@ MonoBehaviour:
   panBorderThickness: 10
   enableEdgePanning: 1
   enableMiddleMousePanning: 1
+  enableRightMousePanning: 1
+  dragSensitivity: 1
   enableKeyboardPan: 1
   panUpKey: 122
   panDownKey: 115
@@ -875,7 +877,7 @@ MonoBehaviour:
   constrainToMap: 1
   mapSize: {x: 30, y: 16}
   tileSize: 1
-  showDebugInfo: 0
+  showDebugInfo: 1
 --- !u!1 &1371228813
 GameObject:
   m_ObjectHideFlags: 0
@@ -1158,7 +1160,7 @@ MonoBehaviour:
   tileSize: 1
   showDebugInfo: 1
   emptyTilePrefab: {fileID: 0}
-  pathTilePrefab: {fileID: 0}
+  pathTilePrefab: {fileID: 1392133846300678912, guid: b7d21227f999e6041b9582ac8320222c, type: 3}
   borderTilePrefab: {fileID: 0}
   spawnTilePrefab: {fileID: 0}
   castleTilePrefab: {fileID: 0}

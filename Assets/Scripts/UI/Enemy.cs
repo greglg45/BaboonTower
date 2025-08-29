@@ -190,16 +190,41 @@ namespace BaboonTower.Game
         }
 
         /// <summary>
-        /// Crée le visuel de l'ennemi
+        /// Crée le visuel de l'ennemi avec SpriteRenderer
         /// </summary>
         private void CreateVisual()
         {
             if (visual != null) Destroy(visual);
 
-            visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            visual.name = "Visual";
+            visual = new GameObject("Visual");
             visual.transform.SetParent(transform);
             visual.transform.localPosition = Vector3.zero;
+
+            // Utiliser un SpriteRenderer au lieu d'un cube
+            SpriteRenderer spriteRenderer = visual.AddComponent<SpriteRenderer>();
+            
+            // Créer un sprite carré simple pour l'ennemi
+            Texture2D texture = new Texture2D(32, 32);
+            Color[] pixels = new Color[32 * 32];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = enemyColor;
+            }
+            texture.SetPixels(pixels);
+            texture.Apply();
+
+            Sprite enemySprite = Sprite.Create(
+                texture,
+                new Rect(0, 0, 32, 32),
+                new Vector2(0.5f, 0.5f),
+                32f // pixels per unit
+            );
+
+            spriteRenderer.sprite = enemySprite;
+            
+            // IMPORTANT : Définir le sorting order pour que l'ennemi soit au-dessus de la route
+            spriteRenderer.sortingOrder = 10; // Plus élevé que la route (qui est à 1)
+            spriteRenderer.sortingLayerName = "Default"; // Ou créer un layer "Enemies" si nécessaire
 
             // Taille selon le type
             float scale = enemyType switch
@@ -211,20 +236,47 @@ namespace BaboonTower.Game
             };
             visual.transform.localScale = Vector3.one * scale;
 
-            // Couleur et matériau
-            Renderer renderer = visual.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material = new Material(Shader.Find("Sprites/Default"));
-                renderer.material.color = enemyColor;
-            }
-
-            Collider col = visual.GetComponent<Collider>();
-            if (col != null) Destroy(col);
+            // Ajouter un contour pour mieux voir l'ennemi
+            AddOutlineToSprite(spriteRenderer);
         }
 
         /// <summary>
-        /// Crée la barre de vie
+        /// Ajoute un contour à l'ennemi pour le rendre plus visible
+        /// </summary>
+        private void AddOutlineToSprite(SpriteRenderer mainSprite)
+        {
+            // Créer un GameObject enfant pour l'outline
+            GameObject outline = new GameObject("Outline");
+            outline.transform.SetParent(visual.transform);
+            outline.transform.localPosition = Vector3.zero;
+            outline.transform.localScale = Vector3.one * 1.1f; // Légèrement plus grand
+
+            SpriteRenderer outlineRenderer = outline.AddComponent<SpriteRenderer>();
+            
+            // Créer un sprite noir pour l'outline
+            Texture2D outlineTexture = new Texture2D(32, 32);
+            Color[] pixels = new Color[32 * 32];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = Color.black;
+            }
+            outlineTexture.SetPixels(pixels);
+            outlineTexture.Apply();
+
+            Sprite outlineSprite = Sprite.Create(
+                outlineTexture,
+                new Rect(0, 0, 32, 32),
+                new Vector2(0.5f, 0.5f),
+                32f
+            );
+
+            outlineRenderer.sprite = outlineSprite;
+            outlineRenderer.sortingOrder = 9; // Juste derrière l'ennemi principal
+            outlineRenderer.color = new Color(0, 0, 0, 0.5f); // Semi-transparent
+        }
+
+        /// <summary>
+        /// Crée la barre de vie avec SpriteRenderer
         /// </summary>
         private void CreateHealthBar()
         {
@@ -232,41 +284,49 @@ namespace BaboonTower.Game
 
             GameObject barContainer = new GameObject("HealthBar");
             barContainer.transform.SetParent(transform);
-            barContainer.transform.localPosition = new Vector3(0, 0.7f, -0.1f);
+            barContainer.transform.localPosition = new Vector3(0, 0.7f, 0);
 
-            // Background
-            healthBarBg = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            healthBarBg.name = "Background";
+            // Background de la barre de vie
+            healthBarBg = new GameObject("Background");
             healthBarBg.transform.SetParent(barContainer.transform);
             healthBarBg.transform.localPosition = Vector3.zero;
-            healthBarBg.transform.localScale = new Vector3(0.8f, 0.15f, 1);
 
-            Renderer bgRenderer = healthBarBg.GetComponent<Renderer>();
-            if (bgRenderer != null)
-            {
-                bgRenderer.material = new Material(Shader.Find("Sprites/Default"));
-                bgRenderer.material.color = Color.black;
-            }
-
-            Collider bgCol = healthBarBg.GetComponent<Collider>();
-            if (bgCol != null) Destroy(bgCol);
+            SpriteRenderer bgRenderer = healthBarBg.AddComponent<SpriteRenderer>();
+            bgRenderer.sprite = CreateColorSprite(Color.black, 40, 6);
+            bgRenderer.sortingOrder = 11; // Au-dessus de l'ennemi
 
             // Barre de vie
-            healthBar = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            healthBar.name = "Fill";
+            healthBar = new GameObject("Fill");
             healthBar.transform.SetParent(barContainer.transform);
             healthBar.transform.localPosition = new Vector3(0, 0, -0.01f);
-            healthBar.transform.localScale = new Vector3(0.7f, 0.1f, 1);
 
-            Renderer barRenderer = healthBar.GetComponent<Renderer>();
-            if (barRenderer != null)
+            SpriteRenderer barRenderer = healthBar.AddComponent<SpriteRenderer>();
+            barRenderer.sprite = CreateColorSprite(Color.green, 36, 4);
+            barRenderer.sortingOrder = 12; // Au-dessus du background
+
+            UpdateHealthBar();
+        }
+
+        /// <summary>
+        /// Crée un sprite d'une couleur unie
+        /// </summary>
+        private Sprite CreateColorSprite(Color color, int width, int height)
+        {
+            Texture2D texture = new Texture2D(width, height);
+            Color[] pixels = new Color[width * height];
+            for (int i = 0; i < pixels.Length; i++)
             {
-                barRenderer.material = new Material(Shader.Find("Sprites/Default"));
-                barRenderer.material.color = Color.green;
+                pixels[i] = color;
             }
+            texture.SetPixels(pixels);
+            texture.Apply();
 
-            Collider barCol = healthBar.GetComponent<Collider>();
-            if (barCol != null) Destroy(barCol);
+            return Sprite.Create(
+                texture,
+                new Rect(0, 0, width, height),
+                new Vector2(0.5f, 0.5f),
+                100f // pixels per unit
+            );
         }
 
         /// <summary>
@@ -274,10 +334,8 @@ namespace BaboonTower.Game
         /// </summary>
         private void UpdateHealthBarPosition()
         {
-            if (healthBar != null && healthBar.transform.parent != null)
-            {
-                healthBar.transform.parent.rotation = Quaternion.identity;
-            }
+            // La barre de vie suit l'ennemi automatiquement car elle est enfant
+            // Pas besoin de rotation fixe avec les sprites
         }
 
         /// <summary>
@@ -289,18 +347,23 @@ namespace BaboonTower.Game
 
             float healthPercent = (float)currentHealth / maxHealth;
             Vector3 scale = healthBar.transform.localScale;
-            scale.x = 0.7f * healthPercent;
+            scale.x = healthPercent;
             healthBar.transform.localScale = scale;
 
-            Renderer renderer = healthBar.GetComponent<Renderer>();
+            // Décaler la position pour que la barre se réduise depuis la gauche
+            Vector3 pos = healthBar.transform.localPosition;
+            pos.x = -(1f - healthPercent) * 0.2f; // Ajuster selon la taille de la barre
+            healthBar.transform.localPosition = pos;
+
+            SpriteRenderer renderer = healthBar.GetComponent<SpriteRenderer>();
             if (renderer != null)
             {
                 if (healthPercent > 0.6f)
-                    renderer.material.color = Color.green;
+                    renderer.color = Color.green;
                 else if (healthPercent > 0.3f)
-                    renderer.material.color = Color.yellow;
+                    renderer.color = Color.yellow;
                 else
-                    renderer.material.color = Color.red;
+                    renderer.color = Color.red;
             }
         }
 

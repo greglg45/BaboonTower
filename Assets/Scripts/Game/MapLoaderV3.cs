@@ -349,33 +349,58 @@ namespace BaboonTower.Game
         /// </summary>
         private GameObject CreateTile(Vector2Int gridPos, TileType type, Transform parent)
         {
-            // Créer un GameObject avec un SpriteRenderer au lieu d'un Quad
-            GameObject tile = new GameObject($"Tile_{gridPos.x}_{gridPos.y}_{type}");
-            tile.transform.SetParent(parent);
+            GameObject tile = null;
 
-            // Ajouter le SpriteRenderer
-            SpriteRenderer spriteRenderer = tile.AddComponent<SpriteRenderer>();
+            // 1. D'abord essayer avec un prefab
+            GameObject tilePrefab = GetTilePrefab(type);
 
-            // Position
-            Vector3 worldPos = GridToWorldPosition(gridPos);
-            worldPos.z = 0f;
-            tile.transform.position = worldPos;
-
-            // Assigner le sprite selon le type
-            Sprite tileSprite = GetSpriteForTileType(type);
-
-            if (tileSprite != null)
+            if (tilePrefab != null)
             {
-                spriteRenderer.sprite = tileSprite;
+                // Utiliser le prefab
+                tile = Instantiate(tilePrefab, parent);
+                tile.name = $"Tile_{gridPos.x}_{gridPos.y}_{type}";
+
+                // Position
+                Vector3 worldPos = GridToWorldPosition(gridPos);
+                worldPos.z = 0f;
+                tile.transform.position = worldPos;
+
+                // Si le prefab a un SpriteRenderer, on peut ajuster le sorting order
+                SpriteRenderer sr = tile.GetComponent<SpriteRenderer>();
+                if (sr != null)
+                {
+                    sr.sortingOrder = GetSortingOrderForTileType(type);
+                }
             }
             else
             {
-                // Fallback : utiliser les couleurs si pas de sprite
-                CreateColorFallback(tile, type, spriteRenderer);
+                // 2. Sinon, fallback sur les sprites simples
+                tile = new GameObject($"Tile_{gridPos.x}_{gridPos.y}_{type}");
+                tile.transform.SetParent(parent);
+
+                SpriteRenderer spriteRenderer = tile.AddComponent<SpriteRenderer>();
+
+                Vector3 worldPos = GridToWorldPosition(gridPos);
+                worldPos.z = 0f;
+                tile.transform.position = worldPos;
+
+                Sprite tileSprite = GetSpriteForTileType(type);
+
+                if (tileSprite != null)
+                {
+                    spriteRenderer.sprite = tileSprite;
+                }
+                else
+                {
+                    // 3. Dernier fallback : couleurs
+                    CreateColorFallback(tile, type, spriteRenderer);
+                }
+
+                spriteRenderer.sortingOrder = GetSortingOrderForTileType(type);
             }
 
-            // Définir l'ordre de tri
-            spriteRenderer.sortingOrder = GetSortingOrderForTileType(type);
+            // Stocker la référence
+            tileObjects[gridPos.x, gridPos.y] = tile;
 
             return tile;
         }
