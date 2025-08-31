@@ -47,6 +47,8 @@ namespace BaboonTower.Game
         /// </summary>
         public void InitializeForMapV3(EnemyType type, List<Vector3> path, GameController controller)
         {
+            Debug.Log($"[Enemy] InitializeForMapV3 called - Type: {type}, Path points: {path?.Count ?? 0}");
+            
             enemyType = type;
             gameController = controller;
 
@@ -64,39 +66,28 @@ namespace BaboonTower.Game
                 transform.position = startPos;
                 currentWaypointIndex = 0;
 
-                Debug.Log($"Enemy initialized with path of {pathToFollow.Count} waypoints. Starting at {startPos}");
+                Debug.Log($"[Enemy] Positioned at {startPos}");
             }
             else
             {
-                Debug.LogError("No path provided for enemy!");
+                Debug.LogError("[Enemy] No path provided for enemy!");
+                return;
             }
 
-            // Créer le visuel
+            // IMPORTANT: Créer le visuel de l'ennemi !
             CreateVisual();
+            
+            // Créer la barre de vie
             CreateHealthBar();
 
+            // Marquer comme initialisé
             isInitialized = true;
-        }
 
-        private void Awake()
-        {
-            if (!isInitialized)
-            {
-                SetupStatsForType();
-            }
-        }
-
-        private void Update()
-        {
-            if (isInitialized && pathToFollow != null && pathToFollow.Count > 0)
-            {
-                FollowPath();
-                UpdateHealthBarPosition();
-            }
+            Debug.Log($"[Enemy] Initialization complete. GameObject active: {gameObject.activeInHierarchy}");
         }
 
         /// <summary>
-        /// Configure les stats selon le type d'ennemi (selon le GDD)
+        /// Configure les stats selon le type d'ennemi
         /// </summary>
         private void SetupStatsForType()
         {
@@ -106,87 +97,29 @@ namespace BaboonTower.Game
                     moveSpeed = 3f;
                     maxHealth = 5;
                     damage = 1;
-                    goldReward = 3;
-                    enemyColor = new Color(0.5f, 1f, 0.5f); // Vert clair
+                    goldReward = 5;
+                    enemyColor = new Color(1f, 0.5f, 0.5f); // Rouge clair
                     break;
 
                 case EnemyType.Medium:
                     moveSpeed = 2f;
                     maxHealth = 10;
                     damage = 2;
-                    goldReward = 5;
-                    enemyColor = new Color(1f, 1f, 0f); // Jaune
+                    goldReward = 10;
+                    enemyColor = Color.red;
                     break;
 
                 case EnemyType.High:
                     moveSpeed = 1f;
                     maxHealth = 20;
-                    damage = 3;
-                    goldReward = 10;
-                    enemyColor = new Color(1f, 0.5f, 0.5f); // Rouge clair
+                    damage = 5;
+                    goldReward = 20;
+                    enemyColor = new Color(0.5f, 0f, 0f); // Rouge foncé
                     break;
             }
 
             currentHealth = maxHealth;
-        }
-
-        /// <summary>
-        /// Suit le chemin défini par les waypoints
-        /// </summary>
-        private void FollowPath()
-        {
-            if (currentWaypointIndex >= pathToFollow.Count)
-            {
-                ReachCastle();
-                return;
-            }
-
-            // Obtenir le prochain waypoint
-            Vector3 targetWaypoint = pathToFollow[currentWaypointIndex];
-            targetWaypoint.z = -1f;
-
-            // Se déplacer vers le waypoint
-            Vector3 currentPos = transform.position;
-            Vector3 direction = (targetWaypoint - currentPos).normalized;
-
-            // Déplacement
-            Vector3 newPosition = currentPos + direction * moveSpeed * Time.deltaTime;
-            newPosition.z = -1f;
-            transform.position = newPosition;
-
-            // Vérifier si on a atteint le waypoint
-            float distance = Vector2.Distance(
-                new Vector2(transform.position.x, transform.position.y),
-                new Vector2(targetWaypoint.x, targetWaypoint.y)
-            );
-
-            if (distance < waypointReachDistance)
-            {
-                currentWaypointIndex++;
-            }
-        }
-
-        /// <summary>
-        /// L'ennemi atteint le château
-        /// </summary>
-        private void ReachCastle()
-        {
-            Debug.Log($"Enemy reached castle! Damage: {damage}");
-
-            OnEnemyReachedEnd?.Invoke(this);
-
-            // Infliger des dégâts au château (seulement si on est l'host)
-            if (NetworkManager.Instance?.CurrentMode == NetworkMode.Host && gameController != null)
-            {
-                var players = gameController.GameStateData?.playersStates;
-                if (players != null && players.Count > 0)
-                {
-                    gameController.DamageCastle(players[0].playerId, damage);
-                    Debug.Log($"Damaged player {players[0].playerId}'s castle for {damage} HP");
-                }
-            }
-
-            Destroy(gameObject);
+            Debug.Log($"[Enemy] Stats configured for {enemyType}: Speed={moveSpeed}, HP={maxHealth}, Damage={damage}");
         }
 
         /// <summary>
@@ -194,13 +127,15 @@ namespace BaboonTower.Game
         /// </summary>
         private void CreateVisual()
         {
+            Debug.Log($"[Enemy] Creating visual at position {transform.position}");
+            
             if (visual != null) Destroy(visual);
 
             visual = new GameObject("Visual");
             visual.transform.SetParent(transform);
             visual.transform.localPosition = Vector3.zero;
 
-            // Utiliser un SpriteRenderer au lieu d'un cube
+            // Utiliser un SpriteRenderer
             SpriteRenderer spriteRenderer = visual.AddComponent<SpriteRenderer>();
             
             // Créer un sprite carré simple pour l'ennemi
@@ -222,10 +157,10 @@ namespace BaboonTower.Game
 
             spriteRenderer.sprite = enemySprite;
             
-            // IMPORTANT : Définir le sorting order pour que l'ennemi soit au-dessus de la route
-            spriteRenderer.sortingOrder = 10; // Plus élevé que la route (qui est à 1)
-            spriteRenderer.sortingLayerName = "Default"; // Ou créer un layer "Enemies" si nécessaire
-
+            // IMPORTANT : Définir le sorting order pour que l'ennemi soit visible
+            spriteRenderer.sortingOrder = 10;
+            spriteRenderer.sortingLayerName = "Default";
+            
             // Taille selon le type
             float scale = enemyType switch
             {
@@ -238,6 +173,8 @@ namespace BaboonTower.Game
 
             // Ajouter un contour pour mieux voir l'ennemi
             AddOutlineToSprite(spriteRenderer);
+            
+            Debug.Log($"[Enemy] Visual created - SortingOrder: {spriteRenderer.sortingOrder}, Scale: {scale}");
         }
 
         /// <summary>
@@ -245,11 +182,10 @@ namespace BaboonTower.Game
         /// </summary>
         private void AddOutlineToSprite(SpriteRenderer mainSprite)
         {
-            // Créer un GameObject enfant pour l'outline
             GameObject outline = new GameObject("Outline");
             outline.transform.SetParent(visual.transform);
-            outline.transform.localPosition = Vector3.zero;
-            outline.transform.localScale = Vector3.one * 1.1f; // Légèrement plus grand
+            outline.transform.localPosition = Vector3.back * 0.01f; // Légèrement derrière
+            outline.transform.localScale = Vector3.one * 1.1f;
 
             SpriteRenderer outlineRenderer = outline.AddComponent<SpriteRenderer>();
             
@@ -272,45 +208,43 @@ namespace BaboonTower.Game
 
             outlineRenderer.sprite = outlineSprite;
             outlineRenderer.sortingOrder = 9; // Juste derrière l'ennemi principal
-            outlineRenderer.color = new Color(0, 0, 0, 0.5f); // Semi-transparent
         }
 
         /// <summary>
-        /// Crée la barre de vie avec SpriteRenderer
+        /// Crée la barre de vie
         /// </summary>
         private void CreateHealthBar()
         {
-            if (healthBar != null) Destroy(healthBar.transform.parent.gameObject);
+            // Conteneur pour la barre de vie
+            GameObject healthBarContainer = new GameObject("HealthBar");
+            healthBarContainer.transform.SetParent(transform);
+            healthBarContainer.transform.localPosition = new Vector3(0, 0.8f, -0.1f);
 
-            GameObject barContainer = new GameObject("HealthBar");
-            barContainer.transform.SetParent(transform);
-            barContainer.transform.localPosition = new Vector3(0, 0.7f, 0);
-
-            // Background de la barre de vie
+            // Background de la barre
             healthBarBg = new GameObject("Background");
-            healthBarBg.transform.SetParent(barContainer.transform);
+            healthBarBg.transform.SetParent(healthBarContainer.transform);
             healthBarBg.transform.localPosition = Vector3.zero;
-
+            
             SpriteRenderer bgRenderer = healthBarBg.AddComponent<SpriteRenderer>();
-            bgRenderer.sprite = CreateColorSprite(Color.black, 40, 6);
-            bgRenderer.sortingOrder = 11; // Au-dessus de l'ennemi
+            bgRenderer.sprite = CreateBarSprite(40, 6, Color.black);
+            bgRenderer.sortingOrder = 11;
 
             // Barre de vie
-            healthBar = new GameObject("Fill");
-            healthBar.transform.SetParent(barContainer.transform);
-            healthBar.transform.localPosition = new Vector3(0, 0, -0.01f);
-
-            SpriteRenderer barRenderer = healthBar.AddComponent<SpriteRenderer>();
-            barRenderer.sprite = CreateColorSprite(Color.green, 36, 4);
-            barRenderer.sortingOrder = 12; // Au-dessus du background
+            healthBar = new GameObject("Health");
+            healthBar.transform.SetParent(healthBarContainer.transform);
+            healthBar.transform.localPosition = Vector3.zero;
+            
+            SpriteRenderer healthRenderer = healthBar.AddComponent<SpriteRenderer>();
+            healthRenderer.sprite = CreateBarSprite(38, 4, Color.green);
+            healthRenderer.sortingOrder = 12;
 
             UpdateHealthBar();
         }
 
         /// <summary>
-        /// Crée un sprite d'une couleur unie
+        /// Crée un sprite pour les barres
         /// </summary>
-        private Sprite CreateColorSprite(Color color, int width, int height)
+        private Sprite CreateBarSprite(int width, int height, Color color)
         {
             Texture2D texture = new Texture2D(width, height);
             Color[] pixels = new Color[width * height];
@@ -325,17 +259,8 @@ namespace BaboonTower.Game
                 texture,
                 new Rect(0, 0, width, height),
                 new Vector2(0.5f, 0.5f),
-                100f // pixels per unit
+                100f
             );
-        }
-
-        /// <summary>
-        /// Met à jour la position de la barre de vie
-        /// </summary>
-        private void UpdateHealthBarPosition()
-        {
-            // La barre de vie suit l'ennemi automatiquement car elle est enfant
-            // Pas besoin de rotation fixe avec les sprites
         }
 
         /// <summary>
@@ -352,7 +277,7 @@ namespace BaboonTower.Game
 
             // Décaler la position pour que la barre se réduise depuis la gauche
             Vector3 pos = healthBar.transform.localPosition;
-            pos.x = -(1f - healthPercent) * 0.2f; // Ajuster selon la taille de la barre
+            pos.x = -(1f - healthPercent) * 0.2f;
             healthBar.transform.localPosition = pos;
 
             SpriteRenderer renderer = healthBar.GetComponent<SpriteRenderer>();
@@ -367,6 +292,67 @@ namespace BaboonTower.Game
             }
         }
 
+        private void Update()
+        {
+            if (!isInitialized || pathToFollow == null || pathToFollow.Count == 0)
+                return;
+
+            MoveAlongPath();
+        }
+
+        /// <summary>
+        /// Déplace l'ennemi le long du chemin
+        /// </summary>
+        private void MoveAlongPath()
+        {
+            if (currentWaypointIndex >= pathToFollow.Count)
+            {
+                ReachEnd();
+                return;
+            }
+
+            Vector3 targetPosition = pathToFollow[currentWaypointIndex];
+            targetPosition.z = transform.position.z; // Garder la même profondeur
+
+            // Se déplacer vers le waypoint
+            Vector3 moveDirection = (targetPosition - transform.position).normalized;
+            transform.position += moveDirection * moveSpeed * Time.deltaTime;
+
+            // Vérifier si on a atteint le waypoint
+            float distanceToWaypoint = Vector3.Distance(transform.position, targetPosition);
+            if (distanceToWaypoint <= waypointReachDistance)
+            {
+                currentWaypointIndex++;
+                if (currentWaypointIndex < pathToFollow.Count)
+                {
+                    Debug.Log($"[Enemy] Reached waypoint {currentWaypointIndex}/{pathToFollow.Count}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// L'ennemi atteint la fin du chemin
+        /// </summary>
+        private void ReachEnd()
+        {
+            Debug.Log($"[Enemy] Reached castle! Damage: {damage}");
+
+            OnEnemyReachedEnd?.Invoke(this);
+
+            // Infliger des dégâts au château (seulement si on est l'host)
+            if (NetworkManager.Instance?.CurrentMode == NetworkMode.Host && gameController != null)
+            {
+                var players = gameController.GameStateData?.playersStates;
+                if (players != null && players.Count > 0)
+                {
+                    gameController.DamageCastle(players[0].playerId, damage);
+                    Debug.Log($"[Enemy] Damaged player {players[0].playerId}'s castle for {damage} HP");
+                }
+            }
+
+            Destroy(gameObject);
+        }
+
         /// <summary>
         /// Applique des dégâts à l'ennemi
         /// </summary>
@@ -375,7 +361,7 @@ namespace BaboonTower.Game
             currentHealth -= dmg;
             UpdateHealthBar();
 
-            Debug.Log($"Enemy took {dmg} damage. Health: {currentHealth}/{maxHealth}");
+            Debug.Log($"[Enemy] Took {dmg} damage. Health: {currentHealth}/{maxHealth}");
 
             if (currentHealth <= 0)
             {
@@ -388,7 +374,7 @@ namespace BaboonTower.Game
         /// </summary>
         private void Die()
         {
-            Debug.Log($"Enemy died! Gold reward: {goldReward}");
+            Debug.Log($"[Enemy] Died! Reward: {goldReward} gold");
 
             OnEnemyKilled?.Invoke(this, goldReward);
 
@@ -399,21 +385,26 @@ namespace BaboonTower.Game
                 if (players != null && players.Count > 0)
                 {
                     gameController.AddGoldToPlayer(players[0].playerId, goldReward);
-                    Debug.Log($"Gave {goldReward} gold to player {players[0].playerId}");
                 }
             }
 
             Destroy(gameObject);
         }
 
-        // Getters publics
+        // Getters publics pour Tower.cs
+        public int GetDamage() => damage;
+        public float GetMoveSpeed() => moveSpeed;
         public EnemyType GetEnemyType() => enemyType;
         public int GetGoldReward() => goldReward;
-        public int GetDamage() => damage;
         public Vector3 GetPosition() => transform.position;
-        public float GetMoveSpeed() => moveSpeed;
 
-        // Debug
+        private void OnDestroy()
+        {
+            // Nettoyer les events
+            OnEnemyReachedEnd = null;
+            OnEnemyKilled = null;
+        }
+
         private void OnDrawGizmos()
         {
             if (pathToFollow != null && pathToFollow.Count > 1)

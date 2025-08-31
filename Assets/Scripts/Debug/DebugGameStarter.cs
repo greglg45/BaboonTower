@@ -1,373 +1,357 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using BaboonTower.Network;
-using BaboonTower.Game;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using BaboonTower.Network;
+using BaboonTower.Game;
 
+/// <summary>
+/// Force le démarrage du jeu en mode debug avec création automatique d'un joueur
+/// </summary>
 public class DebugGameStarter : MonoBehaviour
 {
     [Header("Debug Settings")]
-    public bool autoStartOnSceneLoad = true;
-    public bool simulateHost = true;
-    public float startDelay = 1f;
-
-    [Header("Debug Controls")]
-    public bool showDebugInfo = true;
-    public KeyCode manualStartKey = KeyCode.F1;
+    [SerializeField] private bool autoStartAsHost = true;
+    [SerializeField] private float autoStartDelay = 1f;
+    [SerializeField] private string debugPlayerName = "DebugPlayer";
+    [SerializeField] private int startingGold = 50;
+    [SerializeField] private int startingHP = 100;
 
     private NetworkManager networkManager;
     private GameController gameController;
     private bool gameStarted = false;
 
-    void Start()
+    private void Start()
     {
         Debug.Log("[DEBUG STARTER] Initializing...");
-
-        // Si on est dans GameScene
-        if (SceneManager.GetActiveScene().name == "GameScene")
+        
+        if (autoStartAsHost)
         {
             SetupDebugEnvironment();
-
-            if (autoStartOnSceneLoad)
-            {
-                StartCoroutine(ForceStartAfterDelay());
-            }
+            StartCoroutine(ForceStartAfterDelay());
         }
     }
 
-    void Update()
+    private void Update()
     {
-        // Permettre le démarrage manuel avec F1
-        if (!gameStarted && Input.GetKeyDown(manualStartKey))
+        // Debug commands
+        if (Input.GetKeyDown(KeyCode.F1) && !gameStarted)
         {
             ForceStartGame();
         }
-
-        // Afficher les infos de debug
-        if (showDebugInfo && Input.GetKeyDown(KeyCode.F9))
+        
+        if (Input.GetKeyDown(KeyCode.F2))
+        {
+            AddDebugGold();
+        }
+        
+        if (Input.GetKeyDown(KeyCode.F3))
+        {
+            DamageDebugCastle();
+        }
+        
+        if (Input.GetKeyDown(KeyCode.F4))
+        {
+            ForceNextWave();
+        }
+        
+        if (Input.GetKeyDown(KeyCode.F5))
+        {
+            PrintGameState();
+        }
+        
+        if (Input.GetKeyDown(KeyCode.F9))
         {
             PrintDebugInfo();
         }
     }
 
-    void SetupDebugEnvironment()
+    private void SetupDebugEnvironment()
     {
-        networkManager = NetworkManager.Instance;
-
-        // Si le NetworkManager n'existe pas
+        Debug.Log("[DEBUG STARTER] Creating NetworkManager...");
+        
+        // Create NetworkManager if not exists
+        networkManager = FindObjectOfType<NetworkManager>();
         if (networkManager == null)
         {
-            Debug.Log("[DEBUG STARTER] Creating NetworkManager...");
-
-            // Créer un NetworkManager
-            GameObject netObj = new GameObject("NetworkManager_DEBUG");
-            DontDestroyOnLoad(netObj);
-            networkManager = netObj.AddComponent<NetworkManager>();
-
-            // Attendre un frame pour que le singleton s'initialise
-            StartCoroutine(ConfigureNetworkManagerNextFrame());
+            GameObject nmGo = new GameObject("NetworkManager");
+            networkManager = nmGo.AddComponent<NetworkManager>();
         }
-        else
-        {
-            // NetworkManager existe, le configurer
-            ConfigureNetworkManager();
-        }
-
-        // Trouver le GameController
+        
         gameController = FindObjectOfType<GameController>();
-        if (gameController == null)
-        {
-            Debug.LogError("[DEBUG STARTER] GameController not found!");
-        }
+        
+        // Configure NetworkManager
+        StartCoroutine(ConfigureNetworkManagerNextFrame());
     }
 
-    System.Collections.IEnumerator ConfigureNetworkManagerNextFrame()
+    private IEnumerator ConfigureNetworkManagerNextFrame()
     {
-        yield return null; // Attendre un frame
-        networkManager = NetworkManager.Instance;
+        yield return null; // Wait one frame
+        
         ConfigureNetworkManager();
+        yield return null;
+        
+        // Create debug player
+        CreateDebugPlayer();
     }
 
-    void ConfigureNetworkManager()
+    private void ConfigureNetworkManager()
     {
-        if (NetworkManager.Instance == null)
-        {
-            Debug.LogError("[DEBUG STARTER] NetworkManager.Instance is still null!");
-            return;
-        }
-
+        if (networkManager == null) return;
+        
         Debug.Log("[DEBUG STARTER] Configuring NetworkManager as HOST using reflection...");
-
-        // Utiliser la réflexion pour forcer les propriétés privées
-        System.Type networkManagerType = typeof(NetworkManager);
-
-        // Forcer CurrentMode à Host
-        FieldInfo modeField = networkManagerType.GetField("CurrentMode", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (modeField == null)
+        
+        System.Type nmType = networkManager.GetType();
+        
+        // Set CurrentMode to Host
+        PropertyInfo modeProperty = nmType.GetProperty("CurrentMode");
+        if (modeProperty != null)
         {
-            // Si c'est une propriété avec backing field
-            PropertyInfo modeProp = networkManagerType.GetProperty("CurrentMode");
-            if (modeProp != null)
-            {
-                // Essayer de trouver le backing field
-                modeField = networkManagerType.GetField("<CurrentMode>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance);
-            }
-        }
-
-        if (modeField != null)
-        {
-            modeField.SetValue(NetworkManager.Instance, NetworkMode.Host);
+            modeProperty.SetValue(networkManager, NetworkMode.Host);
             Debug.Log("[DEBUG STARTER] CurrentMode set to Host via reflection");
         }
-        else
+        
+        // Set CurrentState to Connected
+        PropertyInfo stateProperty = nmType.GetProperty("CurrentState");
+        if (stateProperty != null)
         {
-            Debug.LogWarning("[DEBUG STARTER] Could not find CurrentMode field");
-        }
-
-        // Forcer CurrentState à Connected
-        FieldInfo stateField = networkManagerType.GetField("CurrentState", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (stateField == null)
-        {
-            PropertyInfo stateProp = networkManagerType.GetProperty("CurrentState");
-            if (stateProp != null)
-            {
-                stateField = networkManagerType.GetField("<CurrentState>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance);
-            }
-        }
-
-        if (stateField != null)
-        {
-            stateField.SetValue(NetworkManager.Instance, ConnectionState.Connected);
+            stateProperty.SetValue(networkManager, NetworkState.Connected);
             Debug.Log("[DEBUG STARTER] CurrentState set to Connected via reflection");
         }
-        else
+        
+        // Create a debug player in ConnectedPlayers
+        Debug.Log("[DEBUG STARTER] Setting up ConnectedPlayers...");
+        
+        FieldInfo connectedPlayersField = nmType.GetField("connectedPlayers", 
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        
+        if (connectedPlayersField != null)
         {
-            Debug.LogWarning("[DEBUG STARTER] Could not find CurrentState field");
+            var playerData = new NetworkPlayerData
+            {
+                playerId = 1,
+                playerName = debugPlayerName,
+                isHost = true,
+                isReady = true
+            };
+            
+            var playersList = new List<NetworkPlayerData> { playerData };
+            connectedPlayersField.SetValue(networkManager, playersList);
+            
+            Debug.Log("[DEBUG STARTER] ConnectedPlayers configured via reflection");
         }
-
-        // Gérer ConnectedPlayers
-        if (NetworkManager.Instance.ConnectedPlayers == null || NetworkManager.Instance.ConnectedPlayers.Count == 0)
-        {
-            Debug.Log("[DEBUG STARTER] Setting up ConnectedPlayers...");
-
-            // Essayer de trouver le field ConnectedPlayers
-            FieldInfo playersField = networkManagerType.GetField("ConnectedPlayers", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (playersField == null)
-            {
-                PropertyInfo playersProp = networkManagerType.GetProperty("ConnectedPlayers");
-                if (playersProp != null)
-                {
-                    playersField = networkManagerType.GetField("<ConnectedPlayers>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance);
-                }
-            }
-
-            if (playersField != null)
-            {
-                var playersList = new List<PlayerData>();
-                var debugPlayer = new PlayerData("DebugPlayer", 0, true); // isHost = true
-                playersList.Add(debugPlayer);
-                playersField.SetValue(NetworkManager.Instance, playersList);
-                Debug.Log("[DEBUG STARTER] ConnectedPlayers configured via reflection");
-            }
-            else
-            {
-                // Si on ne peut pas utiliser la réflexion, essayer d'ajouter directement
-                if (NetworkManager.Instance.ConnectedPlayers != null)
-                {
-                    NetworkManager.Instance.ConnectedPlayers.Clear();
-                    var debugPlayer = new PlayerData("DebugPlayer", 0, true);
-                    NetworkManager.Instance.ConnectedPlayers.Add(debugPlayer);
-                    Debug.Log("[DEBUG STARTER] Added player to existing ConnectedPlayers list");
-                }
-                else
-                {
-                    Debug.LogError("[DEBUG STARTER] Could not configure ConnectedPlayers");
-                }
-            }
-        }
-
-        // Configurer le nom du joueur
-        NetworkManager.Instance.SetPlayerName("DebugPlayer");
-
-        // Forcer isHost dans GameController aussi
+        
+        // Force GameController to recognize host mode
         ForceGameControllerHostMode();
-
-        Debug.Log($"[DEBUG STARTER] Configuration complete:");
-        Debug.Log($"  - Mode: {NetworkManager.Instance.CurrentMode}");
-        Debug.Log($"  - State: {NetworkManager.Instance.CurrentState}");
-        Debug.Log($"  - Players: {NetworkManager.Instance.ConnectedPlayers?.Count ?? 0}");
+        
+        Debug.Log("[DEBUG STARTER] Configuration complete:");
+        Debug.Log($"  - Mode: {networkManager.CurrentMode}");
+        Debug.Log($"  - State: {networkManager.CurrentState}");
+        Debug.Log($"  - Players: {networkManager.GetPlayerCount()}");
     }
 
-    void ForceGameControllerHostMode()
+    private void CreateDebugPlayer()
     {
         if (gameController == null)
         {
             gameController = FindObjectOfType<GameController>();
         }
-
-        if (gameController != null)
+        
+        if (gameController == null) return;
+        
+        Debug.Log("[DEBUG STARTER] Creating debug player in GameController...");
+        
+        // Access GameStateData
+        var gameStateDataProp = gameController.GetType().GetProperty("GameStateData");
+        if (gameStateDataProp != null)
         {
-            // Utiliser la réflexion pour forcer isHost à true
-            System.Type controllerType = typeof(GameController);
-            FieldInfo hostField = controllerType.GetField("isHost", BindingFlags.NonPublic | BindingFlags.Instance);
-
-            if (hostField != null)
+            var gameStateData = gameStateDataProp.GetValue(gameController) as GameStateData;
+            if (gameStateData != null)
             {
-                hostField.SetValue(gameController, true);
-                Debug.Log("[DEBUG STARTER] GameController.isHost forced to true");
-            }
-            else
-            {
-                Debug.LogWarning("[DEBUG STARTER] Could not find isHost field in GameController");
+                // Create a player
+                var player = new PlayerGameState(1, debugPlayerName, startingGold, startingHP);
+                
+                if (gameStateData.playersStates == null)
+                {
+                    gameStateData.playersStates = new List<PlayerGameState>();
+                }
+                
+                gameStateData.playersStates.Clear();
+                gameStateData.playersStates.Add(player);
+                gameStateData.alivePlayers = 1;
+                
+                Debug.Log($"[DEBUG STARTER] Created player: {debugPlayerName} with {startingGold} gold and {startingHP} HP");
+                
+                // Force localPlayerState
+                var localPlayerField = gameController.GetType().GetField("localPlayerState", 
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (localPlayerField != null)
+                {
+                    localPlayerField.SetValue(gameController, player);
+                    Debug.Log("[DEBUG STARTER] Set localPlayerState");
+                }
             }
         }
     }
 
-    System.Collections.IEnumerator ForceStartAfterDelay()
+    private void ForceGameControllerHostMode()
     {
-        Debug.Log($"[DEBUG STARTER] Waiting {startDelay} seconds before auto-start...");
-        yield return new WaitForSeconds(startDelay);
+        if (gameController == null)
+        {
+            gameController = FindObjectOfType<GameController>();
+        }
+        
+        if (gameController == null) return;
+        
+        System.Type gcType = gameController.GetType();
+        
+        // Set isHost to true
+        FieldInfo isHostField = gcType.GetField("isHost", 
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        
+        if (isHostField != null)
+        {
+            isHostField.SetValue(gameController, true);
+            Debug.Log("[DEBUG STARTER] GameController.isHost forced to true");
+        }
+    }
 
+    private IEnumerator ForceStartAfterDelay()
+    {
+        Debug.Log($"[DEBUG STARTER] Waiting {autoStartDelay} seconds before auto-start...");
+        yield return new WaitForSeconds(autoStartDelay);
+        
+        // Re-create player if needed
+        CreateDebugPlayer();
+        
         ForceStartGame();
     }
 
-    void ForceStartGame()
+    private void ForceStartGame()
     {
-        if (gameStarted)
-        {
-            Debug.LogWarning("[DEBUG STARTER] Game already started!");
-            return;
-        }
-
-        gameController = FindObjectOfType<GameController>();
-        if (gameController == null)
-        {
-            Debug.LogError("[DEBUG STARTER] GameController not found! Cannot start game.");
-            return;
-        }
-
-        // S'assurer que tout est configuré
-        if (NetworkManager.Instance != null && NetworkManager.Instance.CurrentMode != NetworkMode.Host)
-        {
-            Debug.LogWarning("[DEBUG STARTER] Not in Host mode! Reconfiguring...");
-            ConfigureNetworkManager();
-        }
-
-        // Forcer isHost dans GameController une dernière fois
+        if (gameStarted) return;
+        
         ForceGameControllerHostMode();
-
+        CreateDebugPlayer(); // Ensure player exists
+        
         Debug.Log("[DEBUG STARTER] Force starting game as HOST...");
-
-        // Utiliser SendMessage pour appeler les méthodes privées
-        gameController.SendMessage("ForceStartGame", SendMessageOptions.DontRequireReceiver);
-
+        
+        if (gameController != null)
+        {
+            // Change game state directly
+            var gameStateDataProp = gameController.GetType().GetProperty("GameStateData");
+            if (gameStateDataProp != null)
+            {
+                var gameStateData = gameStateDataProp.GetValue(gameController) as GameStateData;
+                if (gameStateData != null)
+                {
+                    // Ensure we have a player
+                    if (gameStateData.playersStates == null || gameStateData.playersStates.Count == 0)
+                    {
+                        CreateDebugPlayer();
+                    }
+                    
+                    // Start with preparation phase
+                    gameStateData.currentState = GameState.PreparationPhase;
+                    gameStateData.currentWave = 0;
+                    gameStateData.preparationTime = 5f; // 5 seconds before first wave
+                    gameStateData.waveTimer = 5f;
+                    
+                    Debug.Log("[DEBUG STARTER] Game state set to PreparationPhase");
+                }
+            }
+            
+            // Trigger game start
+            gameController.SendMessage("OnNetworkGameStarted", SendMessageOptions.DontRequireReceiver);
+        }
+        
         gameStarted = true;
-
+        
         Debug.Log("[DEBUG STARTER] Game started! Debug commands available:");
         Debug.Log("  F1: Force Start (already done)");
         Debug.Log("  F2: Add 50 Gold");
         Debug.Log("  F3: Damage Castle 25 HP");
         Debug.Log("  F4: Force Next Wave");
         Debug.Log("  F5: Print Game State");
-        Debug.Log("  F9: Print Debug Info (from DebugStarter)");
+        Debug.Log("  F9: Print Debug Info");
     }
 
-    void PrintDebugInfo()
+    private void AddDebugGold()
     {
-        Debug.Log("=== DEBUG STARTER INFO ===");
-
-        if (NetworkManager.Instance != null)
-        {
-            Debug.Log($"NetworkManager:");
-            Debug.Log($"  - Mode: {NetworkManager.Instance.CurrentMode}");
-            Debug.Log($"  - State: {NetworkManager.Instance.CurrentState}");
-            Debug.Log($"  - Players: {NetworkManager.Instance.ConnectedPlayers?.Count ?? 0}");
-        }
-        else
-        {
-            Debug.Log("NetworkManager: NULL");
-        }
-
         if (gameController != null)
         {
-            // Utiliser la réflexion pour lire isHost
-            System.Type controllerType = typeof(GameController);
-            FieldInfo hostField = controllerType.GetField("isHost", BindingFlags.NonPublic | BindingFlags.Instance);
-            bool isHost = false;
-            if (hostField != null)
-            {
-                isHost = (bool)hostField.GetValue(gameController);
-            }
-
-            Debug.Log($"GameController:");
-            Debug.Log($"  - Found: Yes");
-            Debug.Log($"  - isHost (private): {isHost}");
-            Debug.Log($"  - Debug Mode Allowed: {gameController.IsDebugSinglePlayerAllowed}");
-
-            if (gameController.GameStateData != null)
-            {
-                Debug.Log($"  - Current State: {gameController.GameStateData.currentState}");
-                Debug.Log($"  - Current Wave: {gameController.GameStateData.currentWave}");
-                Debug.Log($"  - Alive Players: {gameController.GameStateData.alivePlayers}");
-            }
+            gameController.SendMessage("DebugAddGold", SendMessageOptions.DontRequireReceiver);
+            Debug.Log("[DEBUG] Added 50 gold");
         }
-        else
-        {
-            Debug.Log("GameController: NOT FOUND");
-        }
-
-        // Vérifier les managers
-        Debug.Log($"WaveManager: {(FindObjectOfType<WaveManager>() != null ? "Found" : "NOT FOUND")}");
-
-        // Compter les ennemis
-        var enemies = FindObjectsOfType<Enemy>();
-        Debug.Log($"Enemies in scene: {enemies.Length}");
-        foreach (var enemy in enemies)
-        {
-            Debug.Log($"  - {enemy.name} at {enemy.transform.position}");
-        }
-
-        Debug.Log("=========================");
     }
 
-    void OnGUI()
+    private void DamageDebugCastle()
     {
-        if (!showDebugInfo) return;
-
-        // Afficher les infos de debug à l'écran
-        GUI.Box(new Rect(10, 10, 250, 140), "Debug Game Starter");
-
-        string modeText = NetworkManager.Instance != null ?
-            $"Mode: {NetworkManager.Instance.CurrentMode}" : "Mode: No NetworkManager";
-        GUI.Label(new Rect(20, 40, 230, 20), modeText);
-
-        string stateText = gameController != null && gameController.GameStateData != null ?
-            $"State: {gameController.GameStateData.currentState}" : "State: Not initialized";
-        GUI.Label(new Rect(20, 60, 230, 20), stateText);
-
         if (gameController != null)
         {
-            // Utiliser la réflexion pour lire isHost
-            System.Type controllerType = typeof(GameController);
-            FieldInfo hostField = controllerType.GetField("isHost", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (hostField != null)
-            {
-                bool isHost = (bool)hostField.GetValue(gameController);
-                GUI.Label(new Rect(20, 80, 230, 20), $"isHost: {isHost}");
-            }
+            gameController.SendMessage("DebugDamageCastle", SendMessageOptions.DontRequireReceiver);
+            Debug.Log("[DEBUG] Damaged castle by 25 HP");
         }
+    }
 
-        if (!gameStarted)
+    private void ForceNextWave()
+    {
+        if (gameController != null)
         {
-            if (GUI.Button(new Rect(20, 100, 220, 25), "Start Game (F1)"))
+            gameController.SendMessage("DebugForceNextWave", SendMessageOptions.DontRequireReceiver);
+            Debug.Log("[DEBUG] Forced next wave");
+        }
+    }
+
+    private void PrintGameState()
+    {
+        if (gameController != null)
+        {
+            gameController.SendMessage("DebugPrintGameState", SendMessageOptions.DontRequireReceiver);
+        }
+    }
+
+    private void PrintDebugInfo()
+    {
+        Debug.Log("=== DEBUG INFO ===");
+        
+        if (networkManager != null)
+        {
+            Debug.Log($"NetworkManager Mode: {networkManager.CurrentMode}");
+            Debug.Log($"NetworkManager State: {networkManager.CurrentState}");
+            Debug.Log($"Connected Players: {networkManager.GetPlayerCount()}");
+        }
+        
+        if (gameController != null)
+        {
+            var gameStateDataProp = gameController.GetType().GetProperty("GameStateData");
+            if (gameStateDataProp != null)
             {
-                ForceStartGame();
+                var gameStateData = gameStateDataProp.GetValue(gameController) as GameStateData;
+                if (gameStateData != null)
+                {
+                    Debug.Log($"Game State: {gameStateData.currentState}");
+                    Debug.Log($"Current Wave: {gameStateData.currentWave}");
+                    Debug.Log($"Wave Timer: {gameStateData.waveTimer}");
+                    Debug.Log($"Alive Players: {gameStateData.alivePlayers}");
+                    
+                    if (gameStateData.playersStates != null)
+                    {
+                        foreach (var player in gameStateData.playersStates)
+                        {
+                            Debug.Log($"  Player {player.playerId}: {player.playerName} - Gold: {player.gold}, HP: {player.castleHP}/{player.maxCastleHP}");
+                        }
+                    }
+                }
             }
         }
-        else
+        
+        var waveManager = FindObjectOfType<WaveManager>();
+        if (waveManager != null)
         {
-            GUI.Label(new Rect(20, 100, 230, 20), "Game Started - Use F1-F5");
+            Debug.Log($"WaveManager active: {waveManager.enabled}");
         }
+        
+        Debug.Log("==================");
     }
 }

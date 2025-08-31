@@ -1,0 +1,263 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2024-01-01",
+  "currency": "gold",
+  "mercenaries": [
+    {
+      "id": "pbuy",
+      "name": "PBUY",
+      "title": "Le Motivateur",
+      "description": "Crie 'Il va falloir mettre un coup de collier maintenant!' et accélère tous les mobs ennemis",
+      "icon": "merc_pbuy_icon",
+      "prefabName": "MercPbuyPrefab",
+      "category": "speed_modifier",
+      "tier": 1,
+      "stats": {
+        "health": 30,
+        "moveSpeed": 1.5,
+        "damageTocastle": 2,
+        "effectRadius": 0,
+        "effectDuration": 0,
+        "effectPower": 1.5
+      },
+      "cost": {
+        "gold": 4,
+        "cooldown": 10
+      },
+      "effect": {
+        "type": "global_speed_boost",
+        "target": "all_enemies",
+        "speedMultiplier": 1.5,
+        "selfSpeedMultiplier": 0.7,
+        "message": "Il va falloir mettre un coup de collier maintenant!",
+        "soundEffect": "pbuy_shout"
+      },
+      "visual": {
+        "color": "#FF6B6B",
+        "trailEffect": "speed_trail",
+        "scale": 1.1
+      },
+      "requirements": {
+        "minWave": 1,
+        "minPlayerLevel": 0
+      }
+    },
+    {
+      "id": "ybra",
+      "name": "YBRA",
+      "title": "La Chanteuse",
+      "description": "Chante et crée des ondes qui perturbent les tours ennemies",
+      "icon": "merc_ybra_icon",
+      "prefabName": "MercYbraPrefab",
+      "category": "tower_disruptor",
+      "tier": 2,
+      "stats": {
+        "health": 25,
+        "moveSpeed": 2.0,
+        "damageTocastle": 1,
+        "effectRadius": 3.0,
+        "effectDuration": 3.0,
+        "effectPower": 0.3
+      },
+      "cost": {
+        "gold": 60,
+        "cooldown": 15
+      },
+      "effect": {
+        "type": "tower_miss_chance",
+        "target": "enemy_towers",
+        "missChance": 0.3,
+        "pulseInterval": 1.0,
+        "visualEffect": "sonic_wave",
+        "soundEffect": "ybra_song"
+      },
+      "visual": {
+        "color": "#FF69B4",
+        "trailEffect": "musical_notes",
+        "scale": 0.9
+      },
+      "requirements": {
+        "minWave": 2,
+        "minPlayerLevel": 0
+      }
+    },
+    {
+      "id": "abro",
+      "name": "ABRO",
+      "title": "Le Chaos",
+      "description": "Prend une tour aléatoire et la change de place",
+      "icon": "merc_abro_icon",
+      "prefabName": "MercAbroPrefab",
+      "category": "tower_manipulator",
+      "tier": 3,
+      "stats": {
+        "health": 40,
+        "moveSpeed": 1.8,
+        "damageTocastle": 3,
+        "effectRadius": 0,
+        "effectDuration": 0,
+        "effectPower": 1
+      },
+      "cost": {
+        "gold": 80,
+        "cooldown": 20
+      },
+      "effect": {
+        "type": "tower_displacement",
+        "target": "random_tower",
+        "maxDisplacement": 5,
+        "canSwapTowers": true,
+        "visualEffect": "chaos_portal",
+        "soundEffect": "abro_chaos"
+      },
+      "visual": {
+        "color": "#8A2BE2",
+        "trailEffect": "chaos_particles",
+        "scale": 1.0
+      },
+      "requirements": {
+        "minWave": 3,
+        "minPlayerLevel": 0
+      }
+    },
+    {
+      "id": "bgir",
+      "name": "BGIR",
+      "title": "Le Ralentisseur",
+      "description": "A la goutte, se déplace lentement et ralentit les ennemis derrière lui",
+      "icon": "merc_bgir_icon",
+      "prefabName": "MercBgirPrefab",
+      "category": "speed_modifier",
+      "tier": 1,
+      "stats": {
+        "health": 50,
+        "moveSpeed": 0.5,
+        "damageTocastle": 4,
+        "effectRadius": 2.0,
+        "effectDuration": 0,
+        "effectPower": 0.5
+      },
+      "cost": {
+        "gold": 35,
+        "cooldown": 8
+      },
+      "effect": {
+        "type": "slow_aura",
+        "target": "enemies_behind",
+        "slowMultiplier": 0.5,
+        "affectAllies": false,
+        "visualEffect": "slow_field",
+        "soundEffect": "bgir_groan"
+      },
+      "visual": {
+        "color": "#4B0082",
+        "trailEffect": "slow_mist",
+        "scale": 1.3
+      },
+      "requirements": {
+        "minWave": 1,
+        "minPlayerLevel": 0
+      }
+    },
+    {
+      "id": "dint",
+      "name": "DINT",
+      "title": "Le Cafféiné",
+      "description": "Se déplace lentement puis prend un café à mi-chemin et accélère",
+      "icon": "merc_dint_icon",
+      "prefabName": "MercDintPrefab",
+      "category": "special",
+      "tier": 2,
+      "stats": {
+        "health": 35,
+        "moveSpeed": 0.8,
+        "damageTocastle": 2,
+        "effectRadius": 0,
+        "effectDuration": 0,
+        "effectPower": 1.4
+      },
+      "cost": {
+        "gold": 45,
+        "cooldown": 12
+      },
+      "effect": {
+        "type": "speed_change_halfway",
+        "initialSpeedMultiplier": 0.8,
+        "boostedSpeedMultiplier": 1.4,
+        "coffeeBreakDuration": 1.0,
+        "visualEffect": "coffee_steam",
+        "soundEffect": "dint_coffee"
+      },
+      "visual": {
+        "color": "#6F4E37",
+        "trailEffect": "coffee_beans",
+        "scale": 1.0
+      },
+      "requirements": {
+        "minWave": 2,
+        "minPlayerLevel": 0
+      }
+    },
+    {
+      "id": "spy_reveal",
+      "name": "Espion DSI",
+      "title": "Révélateur d'informations",
+      "description": "Révèle les informations des joueurs adverses pendant 30 secondes",
+      "icon": "spell_spy_icon",
+      "prefabName": null,
+      "category": "spell",
+      "tier": 2,
+      "stats": {
+        "health": 0,
+        "moveSpeed": 0,
+        "damageTocastle": 0,
+        "effectRadius": 0,
+        "effectDuration": 30,
+        "effectPower": 1
+      },
+      "cost": {
+        "gold": 25,
+        "cooldown": 60
+      },
+      "effect": {
+        "type": "reveal_players_info",
+        "target": "all_enemies",
+        "revealGold": true,
+        "revealCastleHP": true,
+        "revealTowerCount": true,
+        "duration": 30,
+        "visualEffect": "spy_eye",
+        "soundEffect": "spy_reveal"
+      },
+      "visual": {
+        "color": "#FFD700",
+        "trailEffect": null,
+        "scale": 1.0
+      },
+      "requirements": {
+        "minWave": 1,
+        "minPlayerLevel": 0
+      }
+    }
+  ],
+  "globalSettings": {
+    "maxMercenariesPerWave": 5,
+    "mercenarySpawnDelay": 0.5,
+    "allowMultipleSameType": true,
+    "showTargetSelector": true,
+    "autoTargetIfSingleEnemy": false
+  },
+  "balanceSettings": {
+    "healthMultiplierPerWave": 0.1,
+    "costReductionWithMultipleBuys": 0.0,
+    "effectPowerScaling": 1.0,
+    "cooldownReductionPerWave": 0.0
+  },
+  "targetingSettings": {
+    "showPlayerNames": true,
+    "showPlayerIcons": false,
+    "showLastKnownStats": false,
+    "allowSelfTarget": false,
+    "randomTargetOption": true
+  }
+}

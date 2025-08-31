@@ -91,7 +91,7 @@ namespace BaboonTower.Game
         [SerializeField] private int startingCastleHP = 100;
         [SerializeField] private float preparationTime = 10f;
         [SerializeField] private float waveStartDelay = 5f;
-
+        
         [Header("UI References")]
         [SerializeField] private TextMeshProUGUI waveText;
         [SerializeField] private TextMeshProUGUI goldText;
@@ -107,7 +107,7 @@ namespace BaboonTower.Game
         [Header("Game Grid")]
         [SerializeField] private Transform gameGrid;
         [SerializeField] private Vector2Int gridSize = new Vector2Int(30, 16);
-        [SerializeField] private float tileSize = 64f;
+        [SerializeField] private float tileSize = 1f;
 
         [Header("Debug Settings")]
         [SerializeField] private bool allowSinglePlayerDebug = true;
@@ -135,8 +135,8 @@ namespace BaboonTower.Game
 
         // Propriété publique pour que le NetworkManager puisse vérifier le mode debug
         public bool IsDebugSinglePlayerAllowed => allowSinglePlayerDebug;
-
-        private void Start()
+        
+              private void Start()
         {
             InitializeGame();
             SetupNetworkEvents();
@@ -449,22 +449,19 @@ namespace BaboonTower.Game
                 Debug.Log("[DEBUG] Starting game in single player debug mode");
             }
 
-            // Informer tous les clients que le jeu commence - UTILISATION CORRECTE DE L'ENUM
-            BroadcastGameState(GameState.WaitingForPlayers);
-            SetGameState(GameState.WaitingForPlayers);
-            yield return new WaitForSeconds(waveStartDelay);
-
-            // Démarrer la première phase de préparation - UTILISATION CORRECTE DE L'ENUM
-            BroadcastGameState(GameState.PreparationPhase);
-            SetGameState(GameState.PreparationPhase);
-            gameState.waveTimer = preparationTime;
+            // Attendre un peu avant de commencer
+            yield return new WaitForSeconds(2f);
 
             // Condition de boucle modifiée pour le debug solo
             int minPlayersToKeepGoing = allowSinglePlayerDebug ? 1 : 2;
             while (gameState.alivePlayers >= minPlayersToKeepGoing && gameState.currentState != GameState.GameOver)
             {
                 yield return StartCoroutine(PreparationPhase());
-                yield return StartCoroutine(WavePhase());
+                
+                if (gameState.currentState != GameState.GameOver)
+                {
+                    yield return StartCoroutine(WavePhase());
+                }
             }
         }
 
@@ -533,7 +530,7 @@ namespace BaboonTower.Game
             // Vérifier les éliminations et gagnant
             CheckGameEndConditions();
         }
-
+        
         #endregion
 
         #region Game Logic
@@ -569,6 +566,7 @@ namespace BaboonTower.Game
                 UpdateUI();
             }
         }
+        
         private void SetGameState(GameState newState)
         {
             if (gameState.currentState != newState)
@@ -579,6 +577,7 @@ namespace BaboonTower.Game
                 Debug.Log($"Game State changed to: {newState}");
             }
         }
+        
         private void EliminatePlayer(PlayerGameState player)
         {
             if (player.isEliminated) return;
@@ -635,6 +634,8 @@ namespace BaboonTower.Game
             BroadcastGameState(gameState.currentState);
             BroadcastPlayerStates();
         }
+        
+    
 
         /// <summary>
         /// Diffuse l'état de jeu à tous les clients (Host only)
@@ -777,6 +778,16 @@ namespace BaboonTower.Game
                     case "GAME_WINNER":
                         HandleGameWinnerMessage(data);
                         break;
+                        
+                    case "WAVE_PERFECT_CLEAR":
+                        HandleWavePerfectClearMessage(data);
+                        break;
+                                             
+                    case "SERVER_ANNOUNCEMENT":
+                        // Afficher directement l'annonce sans la retransmettre
+                        Debug.Log($"[SERVER ANNOUNCEMENT] {data}");
+                        StartCoroutine(ShowNotificationCoroutine(data, 5f));
+                        break;
                 }
             }
             catch (System.Exception e)
@@ -812,12 +823,25 @@ namespace BaboonTower.Game
                         // TODO: Traiter les actions des joueurs (placement de tours, etc.)
                         Debug.Log($"Received player action: {data}");
                         break;
+                        
+                    case "WAVE_PERFECT_CLEAR":
+                        // Un client annonce qu'il a parfaitement terminé sa vague
+                        // Le host retransmet à tous les joueurs
+                        BroadcastMessage("WAVE_PERFECT_CLEAR", data);
+                        HandleWavePerfectClearMessage(data);
+                        break;
                 }
             }
             catch (System.Exception e)
             {
                 Debug.LogError($"Error processing client game message {messageType}: {e.Message}");
             }
+        }
+        
+        private void BroadcastMessage(string messageType, string data)
+        {
+            if (!isHost || networkManager == null) return;
+            networkManager.BroadcastGameMessage(messageType, data);
         }
 
         private void HandleGameStateMessage(string data)
@@ -898,6 +922,111 @@ namespace BaboonTower.Game
             {
                 Debug.LogError($"Error parsing game winner message: {e.Message}");
             }
+        }
+        
+        private void HandleWavePerfectClearMessage(string data)
+        {
+            try
+            {
+                // Le message contient déjà le texte formaté
+                Debug.Log($"[WAVE CLEAR ANNOUNCEMENT] {data}");
+                
+                // Afficher le message dans l'UI (vous pouvez créer un système de notification)
+                ShowGameNotification(data, 5f);
+                
+                // Jouer un son de célébration si disponible
+                // AudioManager.PlaySound("perfect_wave_clear");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error handling wave perfect clear message: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Affiche une notification dans le jeu
+        /// </summary>
+        private void ShowGameNotification(string message, float duration)
+        {
+            // Option 1: Envoyer via le système de messages du NetworkManager si on est host
+            if (isHost && networkManager != null)
+            {
+                // Le host peut broadcaster un message serveur
+                networkManager.BroadcastGameMessage("SERVER_ANNOUNCEMENT", message);
+            }
+            
+            // Option 2: Créer un message flottant dans l'UI (pour tous)
+            StartCoroutine(ShowNotificationCoroutine(message, duration));
+        }
+        
+        private System.Collections.IEnumerator ShowNotificationCoroutine(string message, float duration)
+        {
+            // Créer un GameObject temporaire pour afficher le message
+            GameObject notificationGO = new GameObject("WaveNotification");
+            Canvas canvas = FindObjectOfType<Canvas>();
+            if (canvas == null)
+            {
+                Debug.LogError("No canvas found for notification!");
+                yield break;
+            }
+            
+            notificationGO.transform.SetParent(canvas.transform, false);
+            
+            // Positionner au centre-haut de l'écran
+            RectTransform rect = notificationGO.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.8f);
+            rect.anchorMax = new Vector2(0.5f, 0.8f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(600, 100);
+            rect.anchoredPosition = Vector2.zero;
+            
+            // Ajouter un background
+            Image bg = notificationGO.AddComponent<Image>();
+            bg.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
+            
+            // Ajouter le texte
+            GameObject textGO = new GameObject("Text");
+            textGO.transform.SetParent(notificationGO.transform, false);
+            
+            TextMeshProUGUI text = textGO.AddComponent<TextMeshProUGUI>();
+            text.text = message;
+            text.fontSize = 24;
+            text.alignment = TextAlignmentOptions.Center;
+            text.color = new Color(1f, 0.84f, 0f); // Couleur dorée
+            
+            RectTransform textRect = textGO.GetComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.sizeDelta = Vector2.zero;
+            textRect.anchoredPosition = Vector2.zero;
+            
+            // Animation d'apparition
+            float elapsed = 0;
+            while (elapsed < 0.3f)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / 0.3f;
+                rect.localScale = Vector3.Lerp(Vector3.zero, Vector3.one, t);
+                yield return null;
+            }
+            
+            // Attendre
+            yield return new WaitForSeconds(duration);
+            
+            // Animation de disparition
+            elapsed = 0;
+            while (elapsed < 0.3f)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / 0.3f;
+                rect.localScale = Vector3.Lerp(Vector3.one, Vector3.zero, t);
+                bg.color = new Color(bg.color.r, bg.color.g, bg.color.b, 1f - t);
+                text.color = new Color(text.color.r, text.color.g, text.color.b, 1f - t);
+                yield return null;
+            }
+            
+            // Détruire l'objet
+            Destroy(notificationGO);
         }
 
         #endregion
@@ -1002,16 +1131,15 @@ namespace BaboonTower.Game
 
             if (isHost)
             {
-                // L'host démarre la séquence et synchronise avec les clients
+                // L'host démarre immédiatement la séquence de jeu
+                Debug.Log("[HOST] Starting game sequence immediately");
                 StartCoroutine(StartGameSequence());
             }
             else
             {
-                // IMPORTANT: Le client doit aussi démarrer son état !
+                // Le client attend les instructions du serveur
                 SetGameState(GameState.WaitingForPlayers);
-                Debug.Log("Client ready and waiting for game state from server...");
-
-                // Forcer une mise à jour de l'UI
+                Debug.Log("[CLIENT] Ready and waiting for game state from server...");
                 UpdateUI();
             }
         }

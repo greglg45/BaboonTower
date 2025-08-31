@@ -1,0 +1,163 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2024-01-01",
+  "currency": "gold",
+  "towers": [
+    {
+      "id": "basic_tower",
+      "name": "Tour d'Archers",
+      "description": "Tour basique avec une cadence de tir moyenne",
+      "icon": "tower_basic_icon",
+      "prefabName": "BasicTowerPrefab",
+      "tier": 1,
+      "stats": {
+        "damage": 5,
+        "range": 3.5,
+        "fireRate": 1.0,
+        "projectileSpeed": 8.0,
+        "splashDamage": 0,
+        "splashRadius": 0,
+        "slowEffect": 0,
+        "slowDuration": 0
+      },
+      "cost": {
+        "gold": 2,
+        "upgradeFromId": null
+      },
+      "targeting": {
+        "mode": "nearest",
+        "canTargetAir": false,
+        "canTargetGround": true,
+        "maxTargets": 1
+      },
+      "visual": {
+        "towerColor": "#8B4513",
+        "projectileColor": "#FFD700",
+        "rangeIndicatorColor": "#00FF0040",
+        "scale": 1.0
+      },
+      "audio": {
+        "placementSound": "tower_place_01",
+        "fireSound": "arrow_shoot_01",
+        "hitSound": "arrow_hit_01"
+      },
+      "requirements": {
+        "minWave": 0,
+        "minPlayerLevel": 0,
+        "requiredResearch": []
+      }
+    },
+    {
+      "id": "cannon_tower",
+      "name": "Tour Canon",
+      "description": "Tour puissante avec dégâts de zone mais cadence lente",
+      "icon": "tower_cannon_icon",
+      "prefabName": "CannonTowerPrefab",
+      "tier": 2,
+      "stats": {
+        "damage": 15,
+        "range": 4.0,
+        "fireRate": 0.4,
+        "projectileSpeed": 6.0,
+        "splashDamage": 8,
+        "splashRadius": 1.5,
+        "slowEffect": 0,
+        "slowDuration": 0
+      },
+      "cost": {
+        "gold": 50,
+        "upgradeFromId": null
+      },
+      "targeting": {
+        "mode": "strongest",
+        "canTargetAir": false,
+        "canTargetGround": true,
+        "maxTargets": 1
+      },
+      "visual": {
+        "towerColor": "#4A4A4A",
+        "projectileColor": "#FF4500",
+        "rangeIndicatorColor": "#FF000040",
+        "scale": 1.2
+      },
+      "audio": {
+        "placementSound": "tower_place_02",
+        "fireSound": "cannon_shoot_01",
+        "hitSound": "explosion_01"
+      },
+      "requirements": {
+        "minWave": 2,
+        "minPlayerLevel": 0,
+        "requiredResearch": []
+      }
+    },
+    {
+      "id": "frost_tower",
+      "name": "Tour de Glace",
+      "description": "Ralentit les ennemis et inflige des dégâts modérés",
+      "icon": "tower_frost_icon",
+      "prefabName": "FrostTowerPrefab",
+      "tier": 2,
+      "stats": {
+        "damage": 3,
+        "range": 3.0,
+        "fireRate": 1.5,
+        "projectileSpeed": 10.0,
+        "splashDamage": 0,
+        "splashRadius": 0,
+        "slowEffect": 0.5,
+        "slowDuration": 2.0
+      },
+      "cost": {
+        "gold": 35,
+        "upgradeFromId": null
+      },
+      "targeting": {
+        "mode": "fastest",
+        "canTargetAir": true,
+        "canTargetGround": true,
+        "maxTargets": 1
+      },
+      "visual": {
+        "towerColor": "#87CEEB",
+        "projectileColor": "#00BFFF",
+        "rangeIndicatorColor": "#0000FF40",
+        "scale": 1.0
+      },
+      "audio": {
+        "placementSound": "tower_place_03",
+        "fireSound": "frost_shoot_01",
+        "hitSound": "freeze_01"
+      },
+      "requirements": {
+        "minWave": 1,
+        "minPlayerLevel": 0,
+        "requiredResearch": []
+      }
+    }
+  ],
+  "upgrades": [
+    {
+      "fromTowerId": "basic_tower",
+      "toTowerId": "advanced_archer_tower",
+      "cost": 30,
+      "requirements": {
+        "minWave": 5
+      }
+    }
+  ],
+  "globalSettings": {
+    "maxTowersPerPlayer": 50,
+    "sellRefundPercentage": 0.7,
+    "placementGridSize": 1,
+    "showRangeOnHover": true,
+    "showRangeOnPlacement": true,
+    "allowTowerStacking": false
+  },
+  "balanceSettings": {
+    "damageMultiplierPerWave": 0.05,
+    "costMultiplierPerWave": 0.02,
+    "rangeBoostNearCastle": 0.1,
+    "damageBoostNearSpawn": 0.0
+  }
+}
