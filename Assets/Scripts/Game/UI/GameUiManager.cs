@@ -239,6 +239,28 @@ namespace BaboonTower.Game.UI
             }
             towerShopItems.Clear();
             
+            // Add Vertical Layout Group if not present
+            VerticalLayoutGroup layoutGroup = towerShopContent.GetComponent<VerticalLayoutGroup>();
+            if (layoutGroup == null)
+            {
+                layoutGroup = towerShopContent.gameObject.AddComponent<VerticalLayoutGroup>();
+                layoutGroup.spacing = 10;
+                layoutGroup.padding = new RectOffset(10, 10, 10, 10);
+                layoutGroup.childAlignment = TextAnchor.UpperCenter;
+                layoutGroup.childControlWidth = true;
+                layoutGroup.childControlHeight = false;
+                layoutGroup.childForceExpandWidth = true;
+                layoutGroup.childForceExpandHeight = false;
+            }
+            
+            // Add Content Size Fitter if not present
+            ContentSizeFitter sizeFitter = towerShopContent.GetComponent<ContentSizeFitter>();
+            if (sizeFitter == null)
+            {
+                sizeFitter = towerShopContent.gameObject.AddComponent<ContentSizeFitter>();
+                sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            }
+            
             // Create shop items for each tower
             foreach (var towerData in towerConfig.towers)
             {
@@ -259,6 +281,28 @@ namespace BaboonTower.Game.UI
                 Destroy(child.gameObject);
             }
             mercenaryShopItems.Clear();
+            
+            // Add Vertical Layout Group if not present
+            VerticalLayoutGroup layoutGroup = mercenaryShopContent.GetComponent<VerticalLayoutGroup>();
+            if (layoutGroup == null)
+            {
+                layoutGroup = mercenaryShopContent.gameObject.AddComponent<VerticalLayoutGroup>();
+                layoutGroup.spacing = 10;
+                layoutGroup.padding = new RectOffset(10, 10, 10, 10);
+                layoutGroup.childAlignment = TextAnchor.UpperCenter;
+                layoutGroup.childControlWidth = true;
+                layoutGroup.childControlHeight = false;
+                layoutGroup.childForceExpandWidth = true;
+                layoutGroup.childForceExpandHeight = false;
+            }
+            
+            // Add Content Size Fitter if not present
+            ContentSizeFitter sizeFitter = mercenaryShopContent.GetComponent<ContentSizeFitter>();
+            if (sizeFitter == null)
+            {
+                sizeFitter = mercenaryShopContent.gameObject.AddComponent<ContentSizeFitter>();
+                sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            }
             
             // Create shop items for each mercenary
             foreach (var mercData in mercenaryConfig.mercenaries)

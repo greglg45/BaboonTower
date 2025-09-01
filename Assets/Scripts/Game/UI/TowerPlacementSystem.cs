@@ -16,12 +16,6 @@ namespace BaboonTower.Game.UI
         [SerializeField] private Color validPlacementColor = new Color(0, 1, 0, 0.5f);
         [SerializeField] private Color invalidPlacementColor = new Color(1, 0, 0, 0.5f);
         
-        [Header("Range Indicator")]
-        [SerializeField] private Color validRangeColor = new Color(0, 1, 0, 0.3f);
-        [SerializeField] private Color invalidRangeColor = new Color(1, 0, 0, 0.3f);
-        [SerializeField] private int rangeCircleSegments = 64;
-        [SerializeField] private float rangeLineWidth = 0.1f;
-        
         [Header("Preview")]
         [SerializeField] private Material previewMaterial;
         private GameObject previewObject;
@@ -190,29 +184,15 @@ namespace BaboonTower.Game.UI
             // Update range indicator
             if (rangeIndicator != null)
             {
-                rangeIndicator.transform.position = new Vector3(worldPos.x, worldPos.y, -0.5f);
+                rangeIndicator.transform.position = worldPos;
                 
-                // Mettre à jour la couleur du cercle de portée
-                LineRenderer lineRenderer = rangeIndicator.GetComponent<LineRenderer>();
-                if (lineRenderer != null)
+                Renderer rangeRenderer = rangeIndicator.GetComponent<Renderer>();
+                if (rangeRenderer != null)
                 {
-                    Color rangeColor = isValid ? validRangeColor : invalidRangeColor;
-                    lineRenderer.startColor = rangeColor;
-                    lineRenderer.endColor = rangeColor;
-                }
-                
-                // Mettre à jour la couleur de la zone de portée
-                Transform rangeArea = rangeIndicator.transform.Find("RangeArea");
-                if (rangeArea != null)
-                {
-                    MeshRenderer areaMeshRenderer = rangeArea.GetComponent<MeshRenderer>();
-                    if (areaMeshRenderer != null)
-                    {
-                        Color areaColor = isValid ? 
-                            new Color(validRangeColor.r, validRangeColor.g, validRangeColor.b, 0.15f) : 
-                            new Color(invalidRangeColor.r, invalidRangeColor.g, invalidRangeColor.b, 0.15f);
-                        areaMeshRenderer.material.color = areaColor;
-                    }
+                    Color rangeColor = isValid ? 
+                        new Color(0, 1, 0, 0.2f) : 
+                        new Color(1, 0, 0, 0.2f);
+                    rangeRenderer.material.color = rangeColor;
                 }
             }
         }
@@ -322,87 +302,29 @@ namespace BaboonTower.Game.UI
             
             if (currentTowerData == null) return;
             
-            // Créer un GameObject pour l'indicateur de portée
-            rangeIndicator = new GameObject("RangeIndicator");
+            // Create a circle to show range
+            rangeIndicator = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            rangeIndicator.name = "RangeIndicator";
             
-            // Option 1: Utiliser un LineRenderer pour dessiner un cercle
-            LineRenderer lineRenderer = rangeIndicator.AddComponent<LineRenderer>();
-            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
-            lineRenderer.startColor = validRangeColor;
-            lineRenderer.endColor = validRangeColor;
-            lineRenderer.startWidth = rangeLineWidth;
-            lineRenderer.endWidth = rangeLineWidth;
-            lineRenderer.useWorldSpace = true;
-            lineRenderer.loop = true;
+            // Scale to match tower range
+            float diameter = currentTowerData.stats.range * 2f;
+            rangeIndicator.transform.localScale = new Vector3(diameter, 0.01f, diameter);
             
-            // Créer les points du cercle
-            float radius = currentTowerData.stats.range;
-            lineRenderer.positionCount = rangeCircleSegments + 1;
-            
-            for (int i = 0; i <= rangeCircleSegments; i++)
+            // Set material
+            Renderer renderer = rangeIndicator.GetComponent<Renderer>();
+            if (renderer != null)
             {
-                float angle = (float)i / rangeCircleSegments * 2f * Mathf.PI;
-                float x = Mathf.Cos(angle) * radius;
-                float y = Mathf.Sin(angle) * radius;
-                lineRenderer.SetPosition(i, new Vector3(x, y, -0.1f));
+                Material mat = new Material(Shader.Find("Sprites/Default"));
+                mat.color = new Color(0, 1, 0, 0.2f);
+                renderer.material = mat;
             }
             
-            // Option 2: Ajouter aussi un disque semi-transparent
-            GameObject rangeArea = new GameObject("RangeArea");
-            rangeArea.transform.SetParent(rangeIndicator.transform);
-            rangeArea.transform.localPosition = Vector3.zero;
-            
-            // Créer un mesh circulaire pour la zone
-            MeshFilter meshFilter = rangeArea.AddComponent<MeshFilter>();
-            MeshRenderer meshRenderer = rangeArea.AddComponent<MeshRenderer>();
-            
-            Mesh circleMesh = CreateCircleMesh(radius, rangeCircleSegments);
-            meshFilter.mesh = circleMesh;
-            
-            Material areaMaterial = new Material(Shader.Find("Sprites/Default"));
-            areaMaterial.color = new Color(validRangeColor.r, validRangeColor.g, validRangeColor.b, 0.15f);
-            meshRenderer.material = areaMaterial;
-            
-            // S'assurer que le range indicator est au bon niveau Z
-            rangeIndicator.transform.position = new Vector3(0, 0, -0.5f);
-        }
-        
-        /// <summary>
-        /// Crée un mesh circulaire pour afficher la zone de portée
-        /// </summary>
-        private Mesh CreateCircleMesh(float radius, int segments)
-        {
-            Mesh mesh = new Mesh();
-            
-            Vector3[] vertices = new Vector3[segments + 1];
-            int[] triangles = new int[segments * 3];
-            
-            // Centre du cercle
-            vertices[0] = Vector3.zero;
-            
-            // Créer les vertices du cercle
-            for (int i = 0; i < segments; i++)
+            // Disable collider
+            Collider col = rangeIndicator.GetComponent<Collider>();
+            if (col != null)
             {
-                float angle = (float)i / segments * 2f * Mathf.PI;
-                float x = Mathf.Cos(angle) * radius;
-                float y = Mathf.Sin(angle) * radius;
-                vertices[i + 1] = new Vector3(x, y, 0);
+                col.enabled = false;
             }
-            
-            // Créer les triangles
-            for (int i = 0; i < segments; i++)
-            {
-                triangles[i * 3] = 0; // Centre
-                triangles[i * 3 + 1] = i + 1;
-                triangles[i * 3 + 2] = (i + 1) % segments + 1;
-            }
-            
-            mesh.vertices = vertices;
-            mesh.triangles = triangles;
-            mesh.RecalculateNormals();
-            mesh.RecalculateBounds();
-            
-            return mesh;
         }
         
         private GameObject CreateTowerObject(TowerData towerData, Vector3 position)

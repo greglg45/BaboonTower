@@ -103,88 +103,34 @@ namespace BaboonTower.Game
         {
             if (rangeIndicator != null) return;
             
-            rangeIndicator = new GameObject("RangeIndicator");
+            rangeIndicator = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            rangeIndicator.name = "RangeIndicator";
             rangeIndicator.transform.SetParent(transform);
             rangeIndicator.transform.localPosition = Vector3.zero;
             
-            // Utiliser un LineRenderer pour dessiner le cercle de portée
-            LineRenderer lineRenderer = rangeIndicator.AddComponent<LineRenderer>();
-            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            float diameter = towerData.stats.range * 2f;
+            rangeIndicator.transform.localScale = new Vector3(diameter, 0.01f, diameter);
             
-            // Couleur de l'indicateur de portée
-            Color rangeColor = Color.green;
-            if (!string.IsNullOrEmpty(towerData.visual.rangeIndicatorColor))
+            Renderer renderer = rangeIndicator.GetComponent<Renderer>();
+            if (renderer != null)
             {
-                ColorUtility.TryParseHtmlString(towerData.visual.rangeIndicatorColor, out rangeColor);
+                Material mat = new Material(Shader.Find("Sprites/Default"));
+                
+                Color rangeColor = Color.green;
+                if (!string.IsNullOrEmpty(towerData.visual.rangeIndicatorColor))
+                {
+                    ColorUtility.TryParseHtmlString(towerData.visual.rangeIndicatorColor, out rangeColor);
+                }
+                
+                mat.color = rangeColor;
+                renderer.material = mat;
             }
             
-            lineRenderer.startColor = rangeColor;
-            lineRenderer.endColor = rangeColor;
-            lineRenderer.startWidth = 0.05f;
-            lineRenderer.endWidth = 0.05f;
-            lineRenderer.useWorldSpace = false;
-            lineRenderer.loop = true;
-            
-            // Créer les points du cercle
-            int segments = 48;
-            float radius = towerData.stats.range;
-            lineRenderer.positionCount = segments + 1;
-            
-            for (int i = 0; i <= segments; i++)
+            Collider col = rangeIndicator.GetComponent<Collider>();
+            if (col != null)
             {
-                float angle = (float)i / segments * 2f * Mathf.PI;
-                float x = Mathf.Cos(angle) * radius;
-                float y = Mathf.Sin(angle) * radius;
-                lineRenderer.SetPosition(i, new Vector3(x, y, -0.2f));
+                col.enabled = false;
             }
-            
-            // Ajouter une zone semi-transparente
-            GameObject rangeArea = new GameObject("RangeArea");
-            rangeArea.transform.SetParent(rangeIndicator.transform);
-            rangeArea.transform.localPosition = Vector3.zero;
-            
-            MeshFilter meshFilter = rangeArea.AddComponent<MeshFilter>();
-            MeshRenderer meshRenderer = rangeArea.AddComponent<MeshRenderer>();
-            
-            meshFilter.mesh = CreateCircleMesh(radius, segments);
-            
-            Material areaMaterial = new Material(Shader.Find("Sprites/Default"));
-            areaMaterial.color = new Color(rangeColor.r, rangeColor.g, rangeColor.b, 0.1f);
-            meshRenderer.material = areaMaterial;
-            
-            rangeIndicator.SetActive(false);
-        }
-        
-        private Mesh CreateCircleMesh(float radius, int segments)
-        {
-            Mesh mesh = new Mesh();
-            
-            Vector3[] vertices = new Vector3[segments + 1];
-            int[] triangles = new int[segments * 3];
-            
-            vertices[0] = Vector3.zero;
-            
-            for (int i = 0; i < segments; i++)
-            {
-                float angle = (float)i / segments * 2f * Mathf.PI;
-                float x = Mathf.Cos(angle) * radius;
-                float y = Mathf.Sin(angle) * radius;
-                vertices[i + 1] = new Vector3(x, y, 0);
-            }
-            
-            for (int i = 0; i < segments; i++)
-            {
-                triangles[i * 3] = 0;
-                triangles[i * 3 + 1] = i + 1;
-                triangles[i * 3 + 2] = (i + 1) % segments + 1;
-            }
-            
-            mesh.vertices = vertices;
-            mesh.triangles = triangles;
-            mesh.RecalculateNormals();
-            mesh.RecalculateBounds();
-            
-            return mesh;
         }
         
         #endregion
@@ -408,32 +354,8 @@ namespace BaboonTower.Game
             // Update range indicator
             if (rangeIndicator != null)
             {
-                // Mettre à jour le LineRenderer
-                LineRenderer lineRenderer = rangeIndicator.GetComponent<LineRenderer>();
-                if (lineRenderer != null)
-                {
-                    float radius = newData.stats.range;
-                    int segments = lineRenderer.positionCount - 1;
-                    
-                    for (int i = 0; i <= segments; i++)
-                    {
-                        float angle = (float)i / segments * 2f * Mathf.PI;
-                        float x = Mathf.Cos(angle) * radius;
-                        float y = Mathf.Sin(angle) * radius;
-                        lineRenderer.SetPosition(i, new Vector3(x, y, -0.2f));
-                    }
-                }
-                
-                // Mettre à jour le mesh de la zone
-                Transform rangeArea = rangeIndicator.transform.Find("RangeArea");
-                if (rangeArea != null)
-                {
-                    MeshFilter meshFilter = rangeArea.GetComponent<MeshFilter>();
-                    if (meshFilter != null)
-                    {
-                        meshFilter.mesh = CreateCircleMesh(newData.stats.range, 48);
-                    }
-                }
+                float diameter = newData.stats.range * 2f;
+                rangeIndicator.transform.localScale = new Vector3(diameter, 0.01f, diameter);
             }
         }
         

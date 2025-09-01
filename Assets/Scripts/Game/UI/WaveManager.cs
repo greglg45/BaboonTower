@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using BaboonTower.Network;
@@ -17,22 +17,12 @@ namespace BaboonTower.Game
         [SerializeField] private int enemiesSpawned = 0;
         [SerializeField] private int enemiesAlive = 0;
         [SerializeField] private bool waveInProgress = false;
-
-        [Header("Wave Completion")]
-        [SerializeField] private int totalEnemiesInWave = 0;
-        [SerializeField] private int enemiesKilledInWave = 0;
-        [SerializeField] private bool waveCompleteMessageSent = false;
-
-        // Références pour MapLoaderV3
+         
+        // R�f�rences pour MapLoaderV3
         private MapLoaderV3 mapLoader;
         private GameController gameController;
-        private NetworkManager networkManager;
         private Coroutine currentWaveCoroutine;
         private List<Enemy> activeEnemies = new List<Enemy>();
-
-        // Events
-        public System.Action<int> OnWaveCompleted;
-        public System.Action<int, int> OnEnemyKilledInWave; // current killed, total
 
         private void Awake()
         {
@@ -44,7 +34,6 @@ namespace BaboonTower.Game
             // Chercher MapLoaderV3 directement
             mapLoader = FindObjectOfType<MapLoaderV3>();
             gameController = FindObjectOfType<GameController>();
-            networkManager = NetworkManager.Instance;
 
             if (mapLoader == null)
             {
@@ -72,7 +61,7 @@ namespace BaboonTower.Game
         }
 
         /// <summary>
-        /// Vérifie si une vague est en cours
+        /// V�rifie si une vague est en cours
         /// </summary>
         public bool IsWaveInProgress()
         {
@@ -80,11 +69,11 @@ namespace BaboonTower.Game
         }
 
         /// <summary>
-        /// Démarre une nouvelle vague - APPELÉE PAR GameController
+        /// D�marre une nouvelle vague - APPEL�E PAR GameController
         /// </summary>
         public void StartWave(int waveNumber)
         {
-            // Seulement l'host gère le spawn des ennemis
+            // Seulement l'host g�re le spawn des ennemis
             if (NetworkManager.Instance?.CurrentMode != NetworkMode.Host)
             {
                 Debug.Log("Not host, skipping wave spawn");
@@ -114,8 +103,6 @@ namespace BaboonTower.Game
             waveInProgress = true;
             enemiesSpawned = 0;
             enemiesAlive = 0;
-            enemiesKilledInWave = 0;
-            waveCompleteMessageSent = false;
             activeEnemies.Clear();
 
             if (currentWaveCoroutine != null)
@@ -127,7 +114,7 @@ namespace BaboonTower.Game
         }
 
         /// <summary>
-        /// Arrête la vague en cours
+        /// Arr�te la vague en cours
         /// </summary>
         public void StopCurrentWave()
         {
@@ -141,7 +128,7 @@ namespace BaboonTower.Game
 
             waveInProgress = false;
 
-            // Détruire tous les ennemis restants
+            // D�truire tous les ennemis restants
             foreach (var enemy in activeEnemies)
             {
                 if (enemy != null)
@@ -161,9 +148,8 @@ namespace BaboonTower.Game
             // Calculer le nombre d'ennemis pour cette vague
             int totalEnemies = Mathf.RoundToInt(baseEnemiesPerWave * Mathf.Pow(difficultyMultiplier, waveNumber - 1));
             totalEnemies = Mathf.Max(3, totalEnemies);
-            totalEnemiesInWave = totalEnemies; // Stocker le total pour la comparaison
 
-            // Répartition des types d'ennemis selon la vague
+            // R�partition des types d'ennemis selon la vague
             int smallEnemies = Mathf.Max(1, totalEnemies / 2);
             int mediumEnemies = waveNumber > 2 ? Mathf.Max(1, totalEnemies / 3) : 0;
             int highEnemies = waveNumber > 5 ? Mathf.Max(1, totalEnemies / 6) : 0;
@@ -209,16 +195,10 @@ namespace BaboonTower.Game
 
             Debug.Log($"Wave {waveNumber} complete! All enemies defeated.");
             waveInProgress = false;
-
-            // Si ce n'est pas déjà fait, envoyer le message de complétion
-            if (!waveCompleteMessageSent)
-            {
-                SendWaveCompleteMessage();
-            }
         }
 
         /// <summary>
-        /// Spawn un ennemi d'un type donné - Adapté pour MapLoaderV3
+        /// Spawn un ennemi d'un type donn� - Adapt� pour MapLoaderV3
         /// </summary>
         private void SpawnEnemy(EnemyType type)
         {
@@ -228,14 +208,14 @@ namespace BaboonTower.Game
                 return;
             }
 
-            // Vérifier que la map est chargée
+            // V�rifier que la map est charg�e
             if (mapLoader.WorldPath == null || mapLoader.WorldPath.Count < 2)
             {
                 Debug.LogError("Cannot spawn enemy: Map path not available!");
                 return;
             }
 
-            // Créer l'ennemi
+            // Cr�er l'ennemi
             GameObject enemyObj = new GameObject($"Enemy_{type}_{enemiesSpawned}");
             Enemy enemy = enemyObj.AddComponent<Enemy>();
 
@@ -246,7 +226,7 @@ namespace BaboonTower.Game
             enemy.OnEnemyKilled += OnEnemyKilled;
             enemy.OnEnemyReachedEnd += OnEnemyReachedEnd;
 
-            // Ajouter à la liste
+            // Ajouter � la liste
             activeEnemies.Add(enemy);
 
             enemiesSpawned++;
@@ -254,142 +234,30 @@ namespace BaboonTower.Game
 
             Vector3 spawnWorldPos = mapLoader.GridToWorldPosition(mapLoader.SpawnPos);
             Debug.Log($"Spawned {type} enemy at {spawnWorldPos}. Alive: {enemiesAlive}");
-			Debug.Log($"[WaveManager] Enemy created at world position: {spawnWorldPos}");
-			Debug.Log($"[WaveManager] Enemy GameObject active: {enemyObj.activeInHierarchy}");
-			Debug.Log($"[WaveManager] Enemy component added: {enemy != null}");
         }
 
         /// <summary>
-        /// Appelé quand un ennemi est tué
+        /// Appel� quand un ennemi est tu�
         /// </summary>
         private void OnEnemyKilled(Enemy enemy, int goldReward)
         {
             enemiesAlive--;
-            enemiesKilledInWave++;
             activeEnemies.Remove(enemy);
-
-            Debug.Log($"Enemy killed! Reward: {goldReward} gold. Enemies remaining: {enemiesAlive}. Progress: {enemiesKilledInWave}/{totalEnemiesInWave}");
-
-            // Déclencher l'event de progression
-            OnEnemyKilledInWave?.Invoke(enemiesKilledInWave, totalEnemiesInWave);
-
-            // Vérifier si tous les ennemis de la vague ont été tués
-            CheckWaveCompletion();
+            Debug.Log($"Enemy killed! Reward: {goldReward} gold. Enemies remaining: {enemiesAlive}");
         }
 
         /// <summary>
-        /// Appelé quand un ennemi atteint le château
+        /// Appel� quand un ennemi atteint le ch�teau
         /// </summary>
         private void OnEnemyReachedEnd(Enemy enemy)
         {
             enemiesAlive--;
             activeEnemies.Remove(enemy);
             Debug.Log($"Enemy reached castle! Enemies remaining: {enemiesAlive}");
-
-            // Un ennemi qui atteint le château compte comme non-tué
-            // donc on ne vérifie pas la complétion parfaite ici
         }
 
         /// <summary>
-        /// Vérifie si la vague a été complétée (tous les ennemis tués)
-        /// </summary>
-        private void CheckWaveCompletion()
-        {
-            // Vérifier si tous les ennemis ont été tués (pas juste disparus)
-            if (enemiesKilledInWave >= totalEnemiesInWave && !waveCompleteMessageSent)
-            {
-                Debug.Log($"[WaveManager] PERFECT WAVE CLEAR! All {totalEnemiesInWave} enemies killed!");
-                SendWaveCompleteMessage();
-
-                }
-        }
-
-        private int GetLocalPlayerId()
-        {
-            if (networkManager != null && networkManager.ConnectedPlayers.Count > 0)
-            {
-                if (networkManager.CurrentMode == NetworkMode.Host)
-                {
-                    var hostPlayer = networkManager.ConnectedPlayers.Find(p => p.isHost);
-                    return hostPlayer?.playerId ?? 0;
-                }
-                else
-                {
-                    var clientPlayer = networkManager.ConnectedPlayers.Find(p => !p.isHost);
-                    return clientPlayer?.playerId ?? 1;
-                }
-            }
-            return 0;
-        }
-
-        /// <summary>
-        /// Envoie un message à tous les joueurs pour annoncer la complétion de la vague
-        /// </summary>
-        private void SendWaveCompleteMessage()
-        {
-            if (waveCompleteMessageSent) return;
-            waveCompleteMessageSent = true;
-
-            // Obtenir le nom du joueur local
-            string playerName = "Un joueur";
-            if (networkManager != null && networkManager.ConnectedPlayers.Count > 0)
-            {
-                if (networkManager.CurrentMode == NetworkMode.Host)
-                {
-                    var hostPlayer = networkManager.ConnectedPlayers.Find(p => p.isHost);
-                    if (hostPlayer != null)
-                    {
-                        playerName = hostPlayer.playerName;
-                    }
-                }
-            }
-
-            // Créer le message
-            string message = $"{playerName} a éliminé tous les ennemis de la vague {currentWaveNumber}! ({enemiesKilledInWave} ennemis)";
-
-            // Envoyer via le NetworkManager
-            if (networkManager != null)
-            {
-                // Si on est host, broadcaster directement
-                if (networkManager.CurrentMode == NetworkMode.Host)
-                {
-                    networkManager.BroadcastGameMessage("WAVE_PERFECT_CLEAR", message);
-
-                    // Afficher aussi localement
-                    if (gameController != null)
-                    {
-                        // Vous pouvez ajouter une méthode dans GameController pour afficher ce message
-                        Debug.Log($"[ANNOUNCEMENT] {message}");
-                    }
-                }
-                // Si on est client, envoyer au serveur
-                else if (networkManager.CurrentMode == NetworkMode.Client)
-                {
-                    networkManager.SendGameMessageToServer("WAVE_PERFECT_CLEAR", message);
-                }
-            }
-
-            // Déclencher l'event local
-            OnWaveCompleted?.Invoke(currentWaveNumber);
-        }
-
-        /// <summary>
-        /// Obtient les statistiques de la vague actuelle
-        /// </summary>
-        public WaveStats GetCurrentWaveStats()
-        {
-            return new WaveStats
-            {
-                waveNumber = currentWaveNumber,
-                totalEnemies = totalEnemiesInWave,
-                enemiesKilled = enemiesKilledInWave,
-                enemiesAlive = enemiesAlive,
-                isPerfectClear = enemiesKilledInWave >= totalEnemiesInWave
-            };
-        }
-
-        /// <summary>
-        /// Méthodes de debug
+        /// M�thodes de debug
         /// </summary>
         [ContextMenu("Force Start Wave 1")]
         private void DebugStartWave1()
@@ -412,8 +280,6 @@ namespace BaboonTower.Game
             Debug.Log($"Wave In Progress: {waveInProgress}");
             Debug.Log($"Enemies Spawned: {enemiesSpawned}");
             Debug.Log($"Enemies Alive: {enemiesAlive}");
-            Debug.Log($"Enemies Killed: {enemiesKilledInWave}/{totalEnemiesInWave}");
-            Debug.Log($"Perfect Clear: {enemiesKilledInWave >= totalEnemiesInWave}");
             Debug.Log($"Active Enemies Count: {activeEnemies.Count}");
             Debug.Log($"MapLoader Available: {mapLoader != null}");
 
@@ -434,32 +300,17 @@ namespace BaboonTower.Game
         {
             if (Application.isPlaying)
             {
-                GUI.Box(new Rect(10, 210, 200, 120), "Wave Manager V3");
+                GUI.Box(new Rect(10, 210, 200, 100), "Wave Manager V3");
                 GUI.Label(new Rect(20, 235, 180, 20), $"Wave: {currentWaveNumber}");
                 GUI.Label(new Rect(20, 250, 180, 20), $"In Progress: {waveInProgress}");
                 GUI.Label(new Rect(20, 265, 180, 20), $"Enemies: {enemiesAlive}/{enemiesSpawned}");
-                GUI.Label(new Rect(20, 280, 180, 20), $"Killed: {enemiesKilledInWave}/{totalEnemiesInWave}");
-                GUI.Label(new Rect(20, 295, 180, 20), $"Perfect: {(enemiesKilledInWave >= totalEnemiesInWave ? "YES" : "NO")}");
-                GUI.Label(new Rect(20, 310, 180, 20), $"MapLoader: {(mapLoader != null ? "OK" : "MISSING")}");
+                GUI.Label(new Rect(20, 280, 180, 20), $"MapLoader: {(mapLoader != null ? "OK" : "MISSING")}");
 
-                if (GUI.Button(new Rect(20, 325, 80, 15), "Wave 1") && NetworkManager.Instance?.CurrentMode == NetworkMode.Host)
+                if (GUI.Button(new Rect(20, 290, 80, 15), "Wave 1") && NetworkManager.Instance?.CurrentMode == NetworkMode.Host)
                 {
                     StartWave(1);
                 }
             }
         }
-    }
-
-    /// <summary>
-    /// Structure pour les statistiques de vague
-    /// </summary>
-    [System.Serializable]
-    public struct WaveStats
-    {
-        public int waveNumber;
-        public int totalEnemies;
-        public int enemiesKilled;
-        public int enemiesAlive;
-        public bool isPerfectClear;
     }
 }
