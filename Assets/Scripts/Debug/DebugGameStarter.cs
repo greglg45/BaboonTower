@@ -5,15 +5,7 @@ using BaboonTower.Game;
 using System.Collections.Generic;
 using System.Reflection;
 
-<<<<<<< Updated upstream
 public class DebugGameStarter : MonoBehaviour
-=======
-/// <summary>
-/// Script unifié de debug qui combine DebugGameStarter et SimpleGameForcer
-/// Corrige les erreurs de types et simplifie le démarrage du jeu
-/// </summary>
-public class UnifiedDebugStarter : MonoBehaviour
->>>>>>> Stashed changes
 {
     [Header("Debug Settings")]
     public bool autoStartOnSceneLoad = true;
@@ -27,20 +19,13 @@ public class UnifiedDebugStarter : MonoBehaviour
     private NetworkManager networkManager;
     private GameController gameController;
     private bool gameStarted = false;
-    private bool showDebugGUI = true;
 
     void Start()
     {
-<<<<<<< Updated upstream
         Debug.Log("[DEBUG STARTER] Initializing...");
 
         // Si on est dans GameScene
         if (SceneManager.GetActiveScene().name == "GameScene")
-=======
-        Debug.Log("[UNIFIED DEBUG] Initializing debug starter...");
-        
-        if (autoStartAsHost)
->>>>>>> Stashed changes
         {
             SetupDebugEnvironment();
 
@@ -53,7 +38,6 @@ public class UnifiedDebugStarter : MonoBehaviour
 
     void Update()
     {
-<<<<<<< Updated upstream
         // Permettre le démarrage manuel avec F1
         if (!gameStarted && Input.GetKeyDown(manualStartKey))
         {
@@ -62,49 +46,13 @@ public class UnifiedDebugStarter : MonoBehaviour
 
         // Afficher les infos de debug
         if (showDebugInfo && Input.GetKeyDown(KeyCode.F9))
-=======
-        // F1: Force start game
-        if (!gameStarted && Input.GetKeyDown(KeyCode.F1))
         {
-            ForceStartGame();
-        }
-        
-        // F2: Add gold
-        if (Input.GetKeyDown(KeyCode.F2))
-        {
-            AddDebugGold();
-        }
-        
-        // F3: Damage castle
-        if (Input.GetKeyDown(KeyCode.F3))
-        {
-            DamageDebugCastle();
-        }
-        
-        // F4: Force next wave
-        if (Input.GetKeyDown(KeyCode.F4))
-        {
-            ForceNextWave();
-        }
-        
-        // F5: Print game state
-        if (Input.GetKeyDown(KeyCode.F5))
-        {
-            PrintGameState();
-        }
-        
-        // F9: Toggle debug info
-        if (Input.GetKeyDown(KeyCode.F9))
->>>>>>> Stashed changes
-        {
-            showDebugGUI = !showDebugGUI;
             PrintDebugInfo();
         }
     }
 
     void SetupDebugEnvironment()
     {
-<<<<<<< Updated upstream
         networkManager = NetworkManager.Instance;
 
         // Si le NetworkManager n'existe pas
@@ -249,96 +197,6 @@ public class UnifiedDebugStarter : MonoBehaviour
         Debug.Log($"  - Mode: {NetworkManager.Instance.CurrentMode}");
         Debug.Log($"  - State: {NetworkManager.Instance.CurrentState}");
         Debug.Log($"  - Players: {NetworkManager.Instance.ConnectedPlayers?.Count ?? 0}");
-=======
-        Debug.Log("[UNIFIED DEBUG] Setting up debug environment...");
-        
-        // Find or create NetworkManager
-        networkManager = FindObjectOfType<NetworkManager>();
-        if (networkManager == null)
-        {
-            GameObject nmGo = new GameObject("NetworkManager");
-            networkManager = nmGo.AddComponent<NetworkManager>();
-            Debug.Log("[UNIFIED DEBUG] Created NetworkManager");
-        }
-        
-        // Find GameController
-        gameController = FindObjectOfType<GameController>();
-        if (gameController == null)
-        {
-            Debug.LogError("[UNIFIED DEBUG] GameController not found!");
-        }
-        
-        // Configure after one frame
-        StartCoroutine(ConfigureNetworkManagerNextFrame());
-    }
-
-    private IEnumerator ConfigureNetworkManagerNextFrame()
-    {
-        yield return null; // Wait one frame
-        
-        ConfigureNetworkManager();
-        yield return null;
-        
-        // Create debug player
-        CreateDebugPlayer();
-    }
-
-    private void ConfigureNetworkManager()
-    {
-        if (networkManager == null) return;
-        
-        Debug.Log("[UNIFIED DEBUG] Configuring NetworkManager as HOST...");
-        
-        System.Type nmType = networkManager.GetType();
-        
-        // Set CurrentMode to Host using property or backing field
-        var modeField = GetFieldOrBackingField(nmType, "CurrentMode");
-        if (modeField != null)
-        {
-            modeField.SetValue(networkManager, NetworkMode.Host);
-            Debug.Log("[UNIFIED DEBUG] CurrentMode set to Host");
-        }
-        
-        // Set CurrentState to Connected using ConnectionState enum
-        var stateField = GetFieldOrBackingField(nmType, "CurrentState");
-        if (stateField != null)
-        {
-            stateField.SetValue(networkManager, ConnectionState.Connected);
-            Debug.Log("[UNIFIED DEBUG] CurrentState set to Connected");
-        }
-        
-        // Create ConnectedPlayers list if needed
-        if (networkManager.ConnectedPlayers == null || networkManager.ConnectedPlayers.Count == 0)
-        {
-            var playersField = GetFieldOrBackingField(nmType, "ConnectedPlayers");
-            if (playersField != null)
-            {
-                var playersList = new List<PlayerData>();
-                var debugPlayer = new PlayerData(debugPlayerName, 1, true); // Use correct constructor
-                playersList.Add(debugPlayer);
-                playersField.SetValue(networkManager, playersList);
-                Debug.Log("[UNIFIED DEBUG] Added debug player to ConnectedPlayers");
-            }
-        }
-        
-        // Force GameController to host mode
-        ForceGameControllerHostMode();
-    }
-
-    private FieldInfo GetFieldOrBackingField(System.Type type, string propertyName)
-    {
-        // Try direct field
-        var field = type.GetField(propertyName, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
-        if (field != null) return field;
-        
-        // Try auto-generated backing field
-        field = type.GetField($"<{propertyName}>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field != null) return field;
-        
-        // Try lowercase version
-        field = type.GetField(propertyName.ToLower(), BindingFlags.NonPublic | BindingFlags.Instance);
-        return field;
->>>>>>> Stashed changes
     }
 
     void ForceGameControllerHostMode()
@@ -347,19 +205,8 @@ public class UnifiedDebugStarter : MonoBehaviour
         {
             gameController = FindObjectOfType<GameController>();
         }
-<<<<<<< Updated upstream
 
         if (gameController != null)
-=======
-        
-        if (gameController == null) return;
-        
-        Debug.Log("[UNIFIED DEBUG] Creating debug player in GameController...");
-        
-        // Access GameStateData
-        var gameStateDataProp = gameController.GetType().GetProperty("GameStateData");
-        if (gameStateDataProp != null)
->>>>>>> Stashed changes
         {
             // Utiliser la réflexion pour forcer isHost à true
             System.Type controllerType = typeof(GameController);
@@ -367,124 +214,30 @@ public class UnifiedDebugStarter : MonoBehaviour
 
             if (hostField != null)
             {
-<<<<<<< Updated upstream
                 hostField.SetValue(gameController, true);
                 Debug.Log("[DEBUG STARTER] GameController.isHost forced to true");
             }
             else
             {
                 Debug.LogWarning("[DEBUG STARTER] Could not find isHost field in GameController");
-=======
-                // Create a player
-                var player = new PlayerGameState(1, debugPlayerName, startingGold, startingHP);
-                
-                if (gameStateData.playersStates == null)
-                {
-                    gameStateData.playersStates = new List<PlayerGameState>();
-                }
-                
-                gameStateData.playersStates.Clear();
-                gameStateData.playersStates.Add(player);
-                gameStateData.alivePlayers = 1;
-                
-                Debug.Log($"[UNIFIED DEBUG] Created player: {debugPlayerName} with {startingGold} gold and {startingHP} HP");
-                
-                // Set localPlayerState
-                var localPlayerField = gameController.GetType().GetField("localPlayerState", 
-                    BindingFlags.NonPublic | BindingFlags.Instance);
-                if (localPlayerField != null)
-                {
-                    localPlayerField.SetValue(gameController, player);
-                    Debug.Log("[UNIFIED DEBUG] Set localPlayerState");
-                }
->>>>>>> Stashed changes
             }
         }
     }
 
     System.Collections.IEnumerator ForceStartAfterDelay()
     {
-<<<<<<< Updated upstream
         Debug.Log($"[DEBUG STARTER] Waiting {startDelay} seconds before auto-start...");
         yield return new WaitForSeconds(startDelay);
 
-=======
-        if (gameController == null)
-        {
-            gameController = FindObjectOfType<GameController>();
-        }
-        
-        if (gameController == null) return;
-        
-        System.Type gcType = gameController.GetType();
-        
-        // Set isHost to true
-        FieldInfo isHostField = gcType.GetField("isHost", 
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        
-        if (isHostField != null)
-        {
-            isHostField.SetValue(gameController, true);
-            Debug.Log("[UNIFIED DEBUG] GameController.isHost forced to true");
-        }
-    }
-
-    private IEnumerator ForceStartAfterDelay()
-    {
-        Debug.Log($"[UNIFIED DEBUG] Waiting {autoStartDelay} seconds before auto-start...");
-        yield return new WaitForSeconds(autoStartDelay);
-        
->>>>>>> Stashed changes
         ForceStartGame();
     }
 
     void ForceStartGame()
     {
-<<<<<<< Updated upstream
         if (gameStarted)
         {
             Debug.LogWarning("[DEBUG STARTER] Game already started!");
             return;
-=======
-        if (gameStarted) return;
-        
-        Debug.Log("[UNIFIED DEBUG] === FORCING GAME START ===");
-        
-        // Ensure everything is configured
-        ForceGameControllerHostMode();
-        CreateDebugPlayer();
-        
-        if (gameController != null)
-        {
-            // Change game state directly to PreparationPhase
-            var gameStateDataProp = gameController.GetType().GetProperty("GameStateData");
-            if (gameStateDataProp != null)
-            {
-                var gameStateData = gameStateDataProp.GetValue(gameController) as GameStateData;
-                if (gameStateData != null)
-                {
-                    // Ensure player exists
-                    if (gameStateData.playersStates == null || gameStateData.playersStates.Count == 0)
-                    {
-                        CreateDebugPlayer();
-                    }
-                    
-                    // Start with preparation phase
-                    gameStateData.currentState = GameState.PreparationPhase;
-                    gameStateData.currentWave = 0;
-                    gameStateData.preparationTime = 5f;
-                    gameStateData.waveTimer = 5f;
-                    
-                    Debug.Log("[UNIFIED DEBUG] Game state set to PreparationPhase");
-                }
-            }
-            
-            // Trigger game start
-            gameController.SendMessage("OnNetworkGameStarted", SendMessageOptions.DontRequireReceiver);
-            
-            // Also try ForceStartGame if it exists
-            gameController.SendMessage("ForceStartGame", SendMessageOptions.DontRequireReceiver);
->>>>>>> Stashed changes
         }
 
         gameController = FindObjectOfType<GameController>();
@@ -510,43 +263,22 @@ public class UnifiedDebugStarter : MonoBehaviour
         gameController.SendMessage("ForceStartGame", SendMessageOptions.DontRequireReceiver);
 
         gameStarted = true;
-<<<<<<< Updated upstream
 
         Debug.Log("[DEBUG STARTER] Game started! Debug commands available:");
         Debug.Log("  F1: Force Start (already done)");
-=======
-        
-        Debug.Log("[UNIFIED DEBUG] === GAME STARTED ===");
-        Debug.Log("Debug commands:");
-        Debug.Log("  F1: Force Start (done)");
->>>>>>> Stashed changes
         Debug.Log("  F2: Add 50 Gold");
         Debug.Log("  F3: Damage Castle 25 HP");
         Debug.Log("  F4: Force Next Wave");
         Debug.Log("  F5: Print Game State");
-<<<<<<< Updated upstream
         Debug.Log("  F9: Print Debug Info (from DebugStarter)");
-=======
-        Debug.Log("  F9: Toggle Debug GUI");
->>>>>>> Stashed changes
     }
 
     void PrintDebugInfo()
     {
-<<<<<<< Updated upstream
         Debug.Log("=== DEBUG STARTER INFO ===");
-=======
-        if (gameController != null)
-        {
-            gameController.SendMessage("DebugAddGold", SendMessageOptions.DontRequireReceiver);
-            Debug.Log("[UNIFIED DEBUG] Added 50 gold");
-        }
-    }
->>>>>>> Stashed changes
 
         if (NetworkManager.Instance != null)
         {
-<<<<<<< Updated upstream
             Debug.Log($"NetworkManager:");
             Debug.Log($"  - Mode: {NetworkManager.Instance.CurrentMode}");
             Debug.Log($"  - State: {NetworkManager.Instance.CurrentState}");
@@ -555,15 +287,10 @@ public class UnifiedDebugStarter : MonoBehaviour
         else
         {
             Debug.Log("NetworkManager: NULL");
-=======
-            gameController.SendMessage("DebugDamageCastle", SendMessageOptions.DontRequireReceiver);
-            Debug.Log("[UNIFIED DEBUG] Damaged castle by 25 HP");
->>>>>>> Stashed changes
         }
 
         if (gameController != null)
         {
-<<<<<<< Updated upstream
             // Utiliser la réflexion pour lire isHost
             System.Type controllerType = typeof(GameController);
             FieldInfo hostField = controllerType.GetField("isHost", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -586,79 +313,6 @@ public class UnifiedDebugStarter : MonoBehaviour
             }
         }
         else
-=======
-            gameController.SendMessage("DebugForceNextWave", SendMessageOptions.DontRequireReceiver);
-            Debug.Log("[UNIFIED DEBUG] Forced next wave");
-        }
-    }
-
-    private void PrintGameState()
-    {
-        if (gameController != null)
-        {
-            gameController.SendMessage("DebugPrintGameState", SendMessageOptions.DontRequireReceiver);
-        }
-    }
-
-    private void PrintDebugInfo()
-    {
-        Debug.Log("=== DEBUG INFO ===");
-        
-        // Network info
-        if (networkManager != null)
-        {
-            Debug.Log($"NetworkManager Mode: {networkManager.CurrentMode}");
-            Debug.Log($"NetworkManager State: {networkManager.CurrentState}");
-            Debug.Log($"Connected Players: {networkManager.ConnectedPlayers?.Count ?? 0}");
-            
-            if (networkManager.ConnectedPlayers != null)
-            {
-                foreach (var player in networkManager.ConnectedPlayers)
-                {
-                    Debug.Log($"  - {player.playerName} (ID: {player.playerId}, Host: {player.isHost})");
-                }
-            }
-        }
-        
-        // GameController info
-        if (gameController != null)
-        {
-            // Check isHost via reflection
-            System.Type gcType = gameController.GetType();
-            FieldInfo hostField = gcType.GetField("isHost", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (hostField != null)
-            {
-                bool isHost = (bool)hostField.GetValue(gameController);
-                Debug.Log($"GameController.isHost = {isHost}");
-            }
-            
-            // Game state info
-            var gameStateDataProp = gameController.GetType().GetProperty("GameStateData");
-            if (gameStateDataProp != null)
-            {
-                var gameStateData = gameStateDataProp.GetValue(gameController) as GameStateData;
-                if (gameStateData != null)
-                {
-                    Debug.Log($"Game State: {gameStateData.currentState}");
-                    Debug.Log($"Current Wave: {gameStateData.currentWave}");
-                    Debug.Log($"Wave Timer: {gameStateData.waveTimer:F1}");
-                    Debug.Log($"Alive Players: {gameStateData.alivePlayers}");
-                    
-                    if (gameStateData.playersStates != null)
-                    {
-                        foreach (var player in gameStateData.playersStates)
-                        {
-                            Debug.Log($"  Player {player.playerId}: {player.playerName} - Gold: {player.gold}, HP: {player.castleHP}/{player.maxCastleHP}");
-                        }
-                    }
-                }
-            }
-        }
-        
-        // WaveManager info
-        var waveManager = FindObjectOfType<WaveManager>();
-        if (waveManager != null)
->>>>>>> Stashed changes
         {
             Debug.Log("GameController: NOT FOUND");
         }
@@ -715,51 +369,5 @@ public class UnifiedDebugStarter : MonoBehaviour
         {
             GUI.Label(new Rect(20, 100, 230, 20), "Game Started - Use F1-F5");
         }
-<<<<<<< Updated upstream
-=======
-        
-        // Enemy count
-        var enemies = FindObjectsOfType<Enemy>();
-        Debug.Log($"Enemies in scene: {enemies.Length}");
-        
-        Debug.Log("==================");
->>>>>>> Stashed changes
-    }
-
-    private void OnGUI()
-    {
-        if (!showDebugGUI) return;
-        
-        // Debug box
-        GUI.Box(new Rect(10, 10, 250, 150), "Unity Debug Mode");
-        
-        int y = 30;
-        GUI.Label(new Rect(20, y, 220, 20), gameStarted ? "? GAME STARTED (HOST MODE)" : "Press F1 to start");
-        
-        y += 25;
-        if (gameController != null)
-        {
-            var gameStateDataProp = gameController.GetType().GetProperty("GameStateData");
-            if (gameStateDataProp != null)
-            {
-                var gameStateData = gameStateDataProp.GetValue(gameController) as GameStateData;
-                if (gameStateData != null)
-                {
-                    GUI.Label(new Rect(20, y, 220, 20), $"State: {gameStateData.currentState}");
-                    y += 20;
-                    GUI.Label(new Rect(20, y, 220, 20), $"Wave: {gameStateData.currentWave}");
-                    y += 20;
-                    
-                    if (gameStateData.playersStates != null && gameStateData.playersStates.Count > 0)
-                    {
-                        var player = gameStateData.playersStates[0];
-                        GUI.Label(new Rect(20, y, 220, 20), $"Gold: {player.gold} | HP: {player.castleHP}");
-                    }
-                }
-            }
-        }
-        
-        y += 25;
-        GUI.Label(new Rect(20, y, 220, 20), "F9: Toggle this GUI");
     }
 }

@@ -6,7 +6,7 @@ using System.Linq;
 namespace BaboonTower.Game
 {
     /// <summary>
-    /// Charge les maps créées avec l'éditeur web
+    /// Charge les maps crÃ©Ã©es avec l'Ã©diteur web
     /// </summary>
     public class MapLoaderV3 : MonoBehaviour
     {
@@ -28,14 +28,7 @@ namespace BaboonTower.Game
         [SerializeField] private GameObject borderTilePrefab;
         [SerializeField] private GameObject spawnTilePrefab;
         [SerializeField] private GameObject castleTilePrefab;
-
-        [Header("Tile Sprites")]
-        [SerializeField] private Sprite emptyTileSprite;
-        [SerializeField] private Sprite pathTileSprite;
-        [SerializeField] private Sprite borderTileSprite;
-        [SerializeField] private Sprite spawnTileSprite;
-        [SerializeField] private Sprite castleTileSprite;
-
+        
         [Header("Decoration Prefabs")]
         [SerializeField] private List<GameObject> forestDecorations = new List<GameObject>();
         [SerializeField] private List<GameObject> desertDecorations = new List<GameObject>();
@@ -73,7 +66,7 @@ namespace BaboonTower.Game
         
         private void Start()
         {
-            // Charger la map par défaut si elle existe
+            // Charger la map par dÃ©faut si elle existe
             if (!string.IsNullOrEmpty(defaultMapFile))
             {
                 LoadMapFromFile(defaultMapFile);
@@ -185,13 +178,13 @@ namespace BaboonTower.Game
             // Initialiser la grille
             CreateGridFromData(mapData);
             
-            // Créer le chemin
+            // CrÃ©er le chemin
             CreatePathFromData(mapData);
             
-            // Créer les visuels
+            // CrÃ©er les visuels
             CreateVisualMap();
             
-            // Ajouter les décorations
+            // Ajouter les dÃ©corations
             AddRandomDecorations();
             
             // Trigger events
@@ -202,7 +195,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// Crée la grille depuis les données
+        /// CrÃ©e la grille depuis les donnÃ©es
         /// </summary>
         private void CreateGridFromData(CustomMapData mapData)
         {
@@ -212,7 +205,7 @@ namespace BaboonTower.Game
             mapGrid = new TileType[width, height];
             tileObjects = new GameObject[width, height];
             
-            // Si on a les données de grille complètes
+            // Si on a les donnÃ©es de grille complÃ¨tes
             if (mapData.gridData != null && mapData.gridData.Length > 0)
             {
                 for (int y = 0; y < height && y < mapData.gridData.Length; y++)
@@ -232,7 +225,7 @@ namespace BaboonTower.Game
                 ReconstructGridFromPath(mapData);
             }
             
-            // Définir spawn et château
+            // DÃ©finir spawn et chÃ¢teau
             SpawnPos = mapData.spawnPosition.ToVector2Int();
             CastlePos = mapData.castlePosition.ToVector2Int();
             
@@ -291,7 +284,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// Crée le chemin depuis les données
+        /// CrÃ©e le chemin depuis les donnÃ©es
         /// </summary>
         private void CreatePathFromData(CustomMapData mapData)
         {
@@ -307,7 +300,7 @@ namespace BaboonTower.Game
                 worldPath.Add(GridToWorldPosition(pos));
             }
             
-            // Ajouter le château si pas déjà dans le chemin
+            // Ajouter le chÃ¢teau si pas dÃ©jÃ  dans le chemin
             Vector3 castleWorldPos = GridToWorldPosition(CastlePos);
             if (worldPath.Count == 0 || Vector3.Distance(worldPath[worldPath.Count - 1], castleWorldPos) > 0.1f)
             {
@@ -318,7 +311,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// Crée la représentation visuelle
+        /// CrÃ©e la reprÃ©sentation visuelle
         /// </summary>
         private void CreateVisualMap()
         {
@@ -340,91 +333,68 @@ namespace BaboonTower.Game
                 }
             }
             
-            // Créer les marqueurs spéciaux pour spawn et château
+            // CrÃ©er les marqueurs spÃ©ciaux pour spawn et chÃ¢teau
             CreateSpecialMarkers();
         }
 
         /// <summary>
-        /// Crée une tuile visuelle
+        /// CrÃ©e une tuile visuelle
         /// </summary>
-        private GameObject CreateTile(Vector2Int gridPos, TileType type, Transform parent)
+private GameObject CreateTile(Vector2Int gridPos, TileType type, Transform parent)
+{
+    GameObject tile = GameObject.CreatePrimitive(PrimitiveType.Quad);
+    tile.transform.SetParent(parent);
+    
+    // Position SANS rotation - les quads sont déjà orientés face à la caméra
+    Vector3 worldPos = GridToWorldPosition(gridPos);
+    worldPos.z = 0f; // Assurez-vous que Z=0
+    tile.transform.position = worldPos;
+    tile.transform.rotation = Quaternion.identity; // PAS de rotation
+    tile.transform.localScale = Vector3.one * tileSize * 0.95f;
+
+    // Couleurs selon le type
+    Renderer renderer = tile.GetComponent<Renderer>();
+    if (renderer != null)
+    {
+        Material mat = new Material(Shader.Find("Standard"));
+        
+        switch (type)
         {
-            GameObject tile = null;
-
-            // 1. D'abord essayer avec un prefab
-            GameObject tilePrefab = GetTilePrefab(type);
-
-            if (tilePrefab != null)
-            {
-                // Utiliser le prefab
-                tile = Instantiate(tilePrefab, parent);
-                tile.name = $"Tile_{gridPos.x}_{gridPos.y}_{type}";
-
-                // Position
-                Vector3 worldPos = GridToWorldPosition(gridPos);
-                worldPos.z = 0f;
-                tile.transform.position = worldPos;
-
-                // Si le prefab a un SpriteRenderer, on peut ajuster le sorting order
-                SpriteRenderer sr = tile.GetComponent<SpriteRenderer>();
-                if (sr != null)
-                {
-                    sr.sortingOrder = GetSortingOrderForTileType(type);
-                }
-            }
-            else
-            {
-                // 2. Sinon, fallback sur les sprites simples
-                tile = new GameObject($"Tile_{gridPos.x}_{gridPos.y}_{type}");
-                tile.transform.SetParent(parent);
-
-                SpriteRenderer spriteRenderer = tile.AddComponent<SpriteRenderer>();
-
-                Vector3 worldPos = GridToWorldPosition(gridPos);
-                worldPos.z = 0f;
-                tile.transform.position = worldPos;
-
-                Sprite tileSprite = GetSpriteForTileType(type);
-
-                if (tileSprite != null)
-                {
-                    spriteRenderer.sprite = tileSprite;
-                }
-                else
-                {
-                    // 3. Dernier fallback : couleurs
-                    CreateColorFallback(tile, type, spriteRenderer);
-                }
-
-                spriteRenderer.sortingOrder = GetSortingOrderForTileType(type);
-            }
-
-            // Stocker la référence
-            tileObjects[gridPos.x, gridPos.y] = tile;
-
-            return tile;
+            case TileType.Path:
+                mat.color = new Color(0.54f, 0.27f, 0.07f); // Marron
+                break;
+            case TileType.Border:
+                mat.color = new Color(0.18f, 0.31f, 0.18f); // Vert foncé
+                break;
+            case TileType.Spawn:
+                mat.color = Color.green;
+                break;
+            case TileType.Castle:
+                mat.color = Color.blue;
+                break;
+            default:
+                mat.color = new Color(0.6f, 0.6f, 0.6f); // Gris clair
+                break;
         }
+        
+        renderer.material = mat;
+    }
 
-        private Sprite GetSpriteForTileType(TileType type)
-        {
-            switch (type)
-            {
-                case TileType.Empty:
-                    return emptyTileSprite;
-                case TileType.Path:
-                    return pathTileSprite;
-                case TileType.Border:
-                    return borderTileSprite;
-                case TileType.Spawn:
-                    return spawnTileSprite;
-                case TileType.Castle:
-                    return castleTileSprite;
-                case TileType.Decoration:
-                    return null; // Les décorations sont gérées séparément
-                default:
-                    return emptyTileSprite;
-            }
-        }
+    tile.name = $"Tile_{gridPos.x}_{gridPos.y}_{type}";
+
+    // Enlever le collider
+    Collider col = tile.GetComponent<Collider>();
+    if (col != null) Destroy(col);
+    
+    // LOG pour debug
+    if (type == TileType.Path || type == TileType.Spawn || type == TileType.Castle)
+    {
+        Debug.Log($"Created tile {type} at position {worldPos}");
+    }
+    
+    return tile;
+}
+
         /// <summary>
         /// Obtient le prefab pour un type de tuile
         /// </summary>
@@ -446,7 +416,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// Obtient le matériau pour un type de tuile
+        /// Obtient le matÃ©riau pour un type de tuile
         /// </summary>
         private Material GetTileMaterial(TileType type)
         {
@@ -466,7 +436,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// Crée un matériau avec une couleur
+        /// CrÃ©e un matÃ©riau avec une couleur
         /// </summary>
         private Material CreateColorMaterial(Color color)
         {
@@ -480,7 +450,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// Crée les marqueurs pour spawn et château
+        /// CrÃ©e les marqueurs pour spawn et chÃ¢teau
         /// </summary>
         private void CreateSpecialMarkers()
         {
@@ -498,7 +468,7 @@ namespace BaboonTower.Game
             spawnMarker.transform.rotation = Quaternion.Euler(90, 0, 0);
             spawnMarker.transform.localScale = Vector3.one * 0.1f;
             
-            // Marqueur de Château
+            // Marqueur de ChÃ¢teau
             GameObject castleMarker = new GameObject("CastleMarker");
             castleMarker.transform.SetParent(transform);
             castleMarker.transform.position = GridToWorldPosition(CastlePos) + Vector3.up * 0.1f;
@@ -512,72 +482,9 @@ namespace BaboonTower.Game
             castleMarker.transform.rotation = Quaternion.Euler(90, 0, 0);
             castleMarker.transform.localScale = Vector3.one * 0.1f;
         }
-
-        private void CreateColorFallback(GameObject tile, TileType type, SpriteRenderer spriteRenderer)
-        {
-            // Créer un sprite blanc de 1x1 pixel pour la couleur
-            Texture2D texture = new Texture2D(1, 1);
-            texture.SetPixel(0, 0, Color.white);
-            texture.Apply();
-
-            Sprite whiteSprite = Sprite.Create(
-                texture,
-                new Rect(0, 0, 1, 1),
-                new Vector2(0.5f, 0.5f),
-                1f // pixels per unit
-            );
-
-            spriteRenderer.sprite = whiteSprite;
-            spriteRenderer.color = GetColorForTileType(type);
-
-            // Ajuster la taille pour qu'elle corresponde à une tuile
-            tile.transform.localScale = Vector3.one * tileSize;
-        }
+        
         /// <summary>
-        /// Obtient l'ordre de tri pour un type de tuile
-        /// </summary>
-        private int GetSortingOrderForTileType(TileType type)
-        {
-            switch (type)
-            {
-                case TileType.Path:
-                    return 1;
-                case TileType.Border:
-                    return 0;
-                case TileType.Spawn:
-                    return 3;
-                case TileType.Castle:
-                    return 3;
-                case TileType.Decoration:
-                    return 2;
-                default:
-                    return 0;
-            }
-        }
-
-        /// <summary>
-        /// Obtient la couleur pour un type de tuile (fallback)
-        /// </summary>
-        private Color GetColorForTileType(TileType type)
-        {
-            switch (type)
-            {
-                case TileType.Path:
-                    return new Color(0.54f, 0.27f, 0.07f); // Marron
-                case TileType.Border:
-                    return new Color(0.18f, 0.31f, 0.18f); // Vert foncé
-                case TileType.Spawn:
-                    return Color.green;
-                case TileType.Castle:
-                    return Color.blue;
-                case TileType.Decoration:
-                    return new Color(0.2f, 0.4f, 0.2f); // Vert très foncé
-                default:
-                    return new Color(0.29f, 0.29f, 0.29f); // Gris
-            }
-        }
-        /// <summary>
-        /// Ajoute des décorations aléatoires
+        /// Ajoute des dÃ©corations alÃ©atoires
         /// </summary>
         private void AddRandomDecorations()
         {
@@ -594,7 +501,7 @@ namespace BaboonTower.Game
                 return;
             }
             
-            // Calculer le nombre de décorations
+            // Calculer le nombre de dÃ©corations
             int totalTiles = mapGrid.GetLength(0) * mapGrid.GetLength(1);
             int occupiedTiles = 0;
             
@@ -612,7 +519,7 @@ namespace BaboonTower.Game
             int availableTiles = totalTiles - occupiedTiles;
             int decorCount = Mathf.RoundToInt(availableTiles * currentMapData.decorationDensity);
             
-            // Placer les décorations
+            // Placer les dÃ©corations
             List<Vector2Int> availablePositions = new List<Vector2Int>();
             
             for (int x = 0; x < mapGrid.GetLength(0); x++)
@@ -645,7 +552,7 @@ namespace BaboonTower.Game
                 }
                 else
                 {
-                    // Fallback: créer un cube simple
+                    // Fallback: crÃ©er un cube simple
                     GameObject decor = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     decor.transform.SetParent(decorContainer.transform);
                     decor.transform.position = GridToWorldPosition(pos) + Vector3.up * 0.3f;
@@ -658,7 +565,7 @@ namespace BaboonTower.Game
                     }
                 }
                 
-                // Marquer la tuile comme décoration
+                // Marquer la tuile comme dÃ©coration
                 mapGrid[pos.x, pos.y] = TileType.Decoration;
             }
             
@@ -666,7 +573,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// Obtient les prefabs de décoration pour un biome
+        /// Obtient les prefabs de dÃ©coration pour un biome
         /// </summary>
         private List<GameObject> GetDecorationPrefabs(string biome)
         {
@@ -734,7 +641,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// Vérifie si une tour peut être placée
+        /// VÃ©rifie si une tour peut Ãªtre placÃ©e
         /// </summary>
         public bool CanPlaceTowerAt(Vector2Int gridPos)
         {
@@ -800,7 +707,7 @@ namespace BaboonTower.Game
                 Gizmos.DrawWireSphere(worldPath[i], 0.1f);
             }
             
-            // Marquer spawn et château
+            // Marquer spawn et chÃ¢teau
             if (SpawnPos != null)
             {
                 Gizmos.color = Color.green;
