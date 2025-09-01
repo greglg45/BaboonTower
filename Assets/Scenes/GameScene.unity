@@ -1250,17 +1250,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   autoStartOnSceneLoad: 1
   simulateHost: 1
   startDelay: 1
   showDebugInfo: 1
   manualStartKey: 282
 =======
+=======
+>>>>>>> Stashed changes
   autoStartAsHost: 1
   autoStartDelay: 1
   debugPlayerName: DebugPlayer
   startingGold: 50
   startingHP: 100
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 --- !u!114 &680922843
 MonoBehaviour:
@@ -1275,6 +1281,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0003405b9a90b1548a95eb94d98bea9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+<<<<<<< Updated upstream
   autoStart: 1
   startDelay: 1
 --- !u!114 &680922844
@@ -1302,6 +1309,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b5e230bd7c5dd524e9ad6fa992219a58, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 --- !u!1 &693414839
 GameObject:

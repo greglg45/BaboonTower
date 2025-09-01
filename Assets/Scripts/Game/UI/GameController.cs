@@ -659,6 +659,7 @@ namespace BaboonTower.Game
 
             // Chercher et déclencher le WaveManager
             WaveManager waveManager = FindObjectOfType<WaveManager>();
+<<<<<<< Updated upstream
             if (waveManager != null)
             {
                 Debug.Log($"Starting wave {gameState.currentWave} with WaveManager");
@@ -678,6 +679,16 @@ namespace BaboonTower.Game
                 // Fallback : attendre 5 secondes
                 yield return new WaitForSeconds(5f);
             }
+=======
+           if (waveManager != null)
+{
+    waveManager.StartWave(gameState.currentWave);
+}
+else
+{
+    Debug.LogError("WaveManager is NULL!");
+}
+>>>>>>> Stashed changes
 
             // Vérifier les éliminations et gagnant
             CheckGameEndConditions();
