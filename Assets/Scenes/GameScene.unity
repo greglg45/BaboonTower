@@ -1246,28 +1246,14 @@ MonoBehaviour:
   m_GameObject: {fileID: 680922839}
   m_Enabled: 0
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 45a573788ed948044bf678827e14bf1d, type: 3}
+  m_Script: {fileID: 11500000, guid: fa36e98a0dbbf2247b1b26a51a2c1551, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
   autoStartOnSceneLoad: 1
   simulateHost: 1
   startDelay: 1
   showDebugInfo: 1
   manualStartKey: 282
-=======
-=======
->>>>>>> Stashed changes
-  autoStartAsHost: 1
-  autoStartDelay: 1
-  debugPlayerName: DebugPlayer
-  startingGold: 50
-  startingHP: 100
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 --- !u!114 &680922843
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1277,11 +1263,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 680922839}
   m_Enabled: 0
   m_EditorHideFlags: 0
-<<<<<<< Updated upstream
   m_Script: {fileID: 11500000, guid: 0003405b9a90b1548a95eb94d98bea9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-<<<<<<< Updated upstream
   autoStart: 1
   startDelay: 1
 --- !u!114 &680922844
@@ -1305,13 +1289,6 @@ MonoBehaviour:
   debugPlayerName: DebugPlayer2
   showOverlay: 1
   verbose: 1
-=======
-  m_Script: {fileID: 11500000, guid: b5e230bd7c5dd524e9ad6fa992219a58, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 --- !u!1 &693414839
 GameObject:
   m_ObjectHideFlags: 0
@@ -2007,21 +1984,25 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1175636370
-Transform:
+--- !u!224 &1175636370
+RectTransform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1175636369}
-  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 871.6696, y: 204.90506, z: -1.2926568}
+  m_LocalPosition: {x: 0, y: 0, z: -1.2926568}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 871.6696, y: 204.90506}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1175636371
 MonoBehaviour:
   m_ObjectHideFlags: 0
