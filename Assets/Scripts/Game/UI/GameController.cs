@@ -84,6 +84,30 @@ namespace BaboonTower.Game
         public string phase; // "preparation" ou "wave"
     }
 
+    [System.Serializable]
+    public class WaveCompletedMessage
+    {
+        public string playerName;
+        public float timeUntilNextWave;
+        public int currentWave;
+    }
+
+    [System.Serializable]
+    public class WaveCountdownMessage
+    {
+        public float timeRemaining;
+        public string firstPlayer;
+    }
+
+    [System.Serializable]
+    public class MapConfigjson
+    {
+        public float preparationTime = 10f;
+        public float timeBetweenWaves = 15f;
+        public int startingGold = 10;
+        public int startingCastleHP = 100;
+    }
+
     public class GameController : MonoBehaviour
     {
         [Header("Game Settings")]
@@ -91,6 +115,13 @@ namespace BaboonTower.Game
         [SerializeField] private int startingCastleHP = 100;
         [SerializeField] private float preparationTime = 10f;
         [SerializeField] private float waveStartDelay = 5f;
+
+        [Header("Wave Synchronization")]
+        [SerializeField] private float timeBetweenWaves = 15f; // Temps après qu'un joueur finit avant la prochaine vague
+        private float nextWaveCountdown = -1f; // -1 = pas de countdown actif
+        private string firstPlayerToFinish = "";
+        private bool waveCompletedLocally = false;
+        private float lastTimerSync = 0f;
 
         [Header("UI References")]
         [SerializeField] private TextMeshProUGUI waveText;
@@ -152,34 +183,51 @@ namespace BaboonTower.Game
                 lastSyncTime = Time.time;
             }
 
-            // Raccourcis clavier de debug (seulement en mode debug et pour l'host)
-            if (allowSinglePlayerDebug)  // Enlever la vérification isHost
+            // Gestion du countdown entre vagues
+            if (isHost && nextWaveCountdown > 0)
             {
-                // F1 : Force start game
+                nextWaveCountdown -= Time.deltaTime;
+                
+                // Synchroniser le timer toutes les 0.5 secondes
+                if (Time.time - lastTimerSync > TIMER_SYNC_INTERVAL)
+                {
+                    BroadcastWaveCountdown(nextWaveCountdown);
+                    lastTimerSync = Time.time;
+                }
+                
+                // Démarrer la prochaine vague quand le timer arrive à 0
+                if (nextWaveCountdown <= 0)
+                {
+                    nextWaveCountdown = -1;
+                    firstPlayerToFinish = "";
+                    waveCompletedLocally = false;
+                    StartCoroutine(WavePhase());
+                }
+            }
+
+            // Raccourcis clavier de debug (seulement en mode debug et pour l'host)
+            if (allowSinglePlayerDebug)
+            {
                 if (Input.GetKeyDown(forceStartGameKey))
                 {
                     ForceStartGame();
                 }
 
-                // F2 : Add gold
                 if (Input.GetKeyDown(KeyCode.F2))
                 {
                     DebugAddGold();
                 }
 
-                // F3 : Damage castle
                 if (Input.GetKeyDown(KeyCode.F3))
                 {
                     DebugDamageCastle();
                 }
 
-                // F4 : Force next wave
                 if (Input.GetKeyDown(KeyCode.F4))
                 {
                     DebugForceNextWave();
                 }
 
-                // F5 : Print game state
                 if (Input.GetKeyDown(KeyCode.F5))
                 {
                     DebugPrintGameState();
@@ -196,6 +244,20 @@ namespace BaboonTower.Game
 
         private void InitializeGame()
         {
+            // Charger la configuration depuis le JSON de la map (si disponible)
+            string mapConfigPath = "Assets/StreamingAssets/map_config.json";
+            if (System.IO.File.Exists(mapConfigPath))
+            {
+                string json = System.IO.File.ReadAllText(mapConfigPath);
+                MapConfigjson config = JsonUtility.FromJson<MapConfigjson>(json);
+                preparationTime = config.preparationTime;
+                timeBetweenWaves = config.timeBetweenWaves;
+                startingGold = config.startingGold;
+                startingCastleHP = config.startingCastleHP;
+                
+                Debug.Log($"Map config loaded: prep={preparationTime}s, between waves={timeBetweenWaves}s");
+            }
+
             networkManager = NetworkManager.Instance;
             if (networkManager == null)
             {
@@ -317,6 +379,94 @@ namespace BaboonTower.Game
             if (isHost && allowSinglePlayerDebug)
             {
                 Debug.Log($"[DEBUG] Press {forceStartGameKey} to force start game (Host only)");
+            }
+        }
+
+        #endregion
+
+        #region Wave Management
+
+        // Méthode pour signaler qu'un joueur a fini sa vague
+        public void OnLocalWaveCompleted()
+        {
+            if (waveCompletedLocally) return; // Éviter les doublons
+            waveCompletedLocally = true;
+            
+            Debug.Log($"Local player completed wave {gameState.currentWave}");
+            
+            if (isHost)
+            {
+                // L'hôte gère le timer global
+                OnPlayerCompletedWave(localPlayerState.playerName);
+            }
+            else
+            {
+                // Le client informe le serveur
+                networkManager.SendGameMessageToServer("WAVE_COMPLETED", localPlayerState.playerName);
+            }
+        }
+
+        // Méthode appelée quand un joueur termine sa vague (côté serveur uniquement)
+        private void OnPlayerCompletedWave(string playerName)
+        {
+            if (!isHost) return;
+            
+            // Si c'est le premier joueur à finir cette vague
+            if (nextWaveCountdown < 0 && gameState.currentState == GameState.WaveActive)
+            {
+                firstPlayerToFinish = playerName;
+                nextWaveCountdown = timeBetweenWaves;
+                
+                // Broadcaster à tous les joueurs
+                var message = new WaveCompletedMessage
+                {
+                    playerName = playerName,
+                    timeUntilNextWave = timeBetweenWaves,
+                    currentWave = gameState.currentWave
+                };
+                
+                string json = JsonUtility.ToJson(message);
+                networkManager.BroadcastGameMessage("FIRST_PLAYER_COMPLETED", json);
+                
+                Debug.Log($"{playerName} finished wave {gameState.currentWave} first! Next wave in {timeBetweenWaves} seconds");
+            }
+        }
+
+        // Broadcaster le countdown
+        private void BroadcastWaveCountdown(float timeRemaining)
+        {
+            if (!isHost) return;
+            
+            var message = new WaveCountdownMessage
+            {
+                timeRemaining = timeRemaining,
+                firstPlayer = firstPlayerToFinish
+            };
+            
+            string json = JsonUtility.ToJson(message);
+            networkManager.BroadcastGameMessage("WAVE_COUNTDOWN", json);
+        }
+
+        // Afficher le message de fin de vague
+        private void ShowWaveCompletedMessage(string playerName, float timeUntilNext)
+        {
+            if (gameStateText != null)
+            {
+                gameStateText.text = $"{playerName} a fini la vague en premier !!!\nProchaine vague dans {timeUntilNext:F0} secondes!";
+            }
+        }
+
+        // Mettre à jour l'UI du countdown
+        private void UpdateWaveCountdownUI(float timeRemaining, string firstPlayer)
+        {
+            if (timerText != null && timeRemaining > 0)
+            {
+                timerText.text = $"Prochaine vague dans: {Mathf.Ceil(timeRemaining)}s";
+                timerText.gameObject.SetActive(true);
+            }
+            else if (timerText != null)
+            {
+                timerText.gameObject.SetActive(false);
             }
         }
 
@@ -449,12 +599,12 @@ namespace BaboonTower.Game
                 Debug.Log("[DEBUG] Starting game in single player debug mode");
             }
 
-            // Informer tous les clients que le jeu commence - UTILISATION CORRECTE DE L'ENUM
+            // Informer tous les clients que le jeu commence
             BroadcastGameState(GameState.WaitingForPlayers);
             SetGameState(GameState.WaitingForPlayers);
             yield return new WaitForSeconds(waveStartDelay);
 
-            // Démarrer la première phase de préparation - UTILISATION CORRECTE DE L'ENUM
+            // Démarrer la première phase de préparation
             BroadcastGameState(GameState.PreparationPhase);
             SetGameState(GameState.PreparationPhase);
             gameState.waveTimer = preparationTime;
@@ -472,7 +622,6 @@ namespace BaboonTower.Game
         {
             if (!isHost) yield break;
 
-            // UTILISATION CORRECTE DE L'ENUM
             BroadcastGameState(GameState.PreparationPhase);
             SetGameState(GameState.PreparationPhase);
             gameState.waveTimer = preparationTime;
@@ -500,8 +649,8 @@ namespace BaboonTower.Game
             if (!isHost) yield break;
 
             gameState.currentWave++;
+            waveCompletedLocally = false; // Reset pour la nouvelle vague
 
-            // UTILISATION CORRECTE DE L'ENUM GameState (pas gameState)
             BroadcastGameState(GameState.WaveActive);
             BroadcastWaveNumber(gameState.currentWave);
             SetGameState(GameState.WaveActive);
@@ -515,13 +664,13 @@ namespace BaboonTower.Game
                 Debug.Log($"Starting wave {gameState.currentWave} with WaveManager");
                 waveManager.StartWave(gameState.currentWave);
 
-                // Attendre que la vague soit terminée
-                while (waveManager.IsWaveInProgress())
+                // Attendre que la vague soit terminée OU qu'un joueur finisse en premier
+                while (waveManager.IsWaveInProgress() && nextWaveCountdown < 0)
                 {
                     yield return new WaitForSeconds(0.5f);
                 }
 
-                Debug.Log($"Wave {gameState.currentWave} completed");
+                Debug.Log($"Wave {gameState.currentWave} phase completed");
             }
             else
             {
@@ -569,6 +718,7 @@ namespace BaboonTower.Game
                 UpdateUI();
             }
         }
+
         private void SetGameState(GameState newState)
         {
             if (gameState.currentState != newState)
@@ -579,6 +729,7 @@ namespace BaboonTower.Game
                 Debug.Log($"Game State changed to: {newState}");
             }
         }
+
         private void EliminatePlayer(PlayerGameState player)
         {
             if (player.isEliminated) return;
@@ -625,9 +776,6 @@ namespace BaboonTower.Game
 
         #region Network Synchronization
 
-        /// <summary>
-        /// Synchronisation générale de l'état de jeu (appelée périodiquement)
-        /// </summary>
         private void SyncGameState()
         {
             if (!isHost) return;
@@ -636,9 +784,6 @@ namespace BaboonTower.Game
             BroadcastPlayerStates();
         }
 
-        /// <summary>
-        /// Diffuse l'état de jeu à tous les clients (Host only)
-        /// </summary>
         private void BroadcastGameState(GameState state)
         {
             if (!isHost || networkManager == null) return;
@@ -657,9 +802,6 @@ namespace BaboonTower.Game
             Debug.Log($"Broadcasting game state: {state}");
         }
 
-        /// <summary>
-        /// Diffuse le numéro de vague à tous les clients (Host only)
-        /// </summary>
         private void BroadcastWaveNumber(int waveNumber)
         {
             if (!isHost || networkManager == null) return;
@@ -668,9 +810,6 @@ namespace BaboonTower.Game
             Debug.Log($"Broadcasting wave number: {waveNumber}");
         }
 
-        /// <summary>
-        /// Diffuse le timer à tous les clients (Host only)
-        /// </summary>
         private void BroadcastGameTimer(float timer, string phase)
         {
             if (!isHost || networkManager == null) return;
@@ -685,9 +824,6 @@ namespace BaboonTower.Game
             networkManager.BroadcastGameMessage("GAME_TIMER", json);
         }
 
-        /// <summary>
-        /// Diffuse l'état de tous les joueurs (Host only)
-        /// </summary>
         private void BroadcastPlayerStates()
         {
             if (!isHost || networkManager == null) return;
@@ -701,9 +837,6 @@ namespace BaboonTower.Game
             networkManager.BroadcastGameMessage("PLAYERS_STATES", json);
         }
 
-        /// <summary>
-        /// Diffuse qu'un joueur a été éliminé (Host only)
-        /// </summary>
         private void BroadcastPlayerElimination(PlayerGameState player)
         {
             if (!isHost || networkManager == null) return;
@@ -712,9 +845,6 @@ namespace BaboonTower.Game
             networkManager.BroadcastGameMessage("PLAYER_ELIMINATED", json);
         }
 
-        /// <summary>
-        /// Diffuse le gagnant de la partie (Host only)
-        /// </summary>
         private void BroadcastGameWinner(PlayerGameState winner)
         {
             if (!isHost || networkManager == null) return;
@@ -723,9 +853,6 @@ namespace BaboonTower.Game
             networkManager.BroadcastGameMessage("GAME_WINNER", json);
         }
 
-        /// <summary>
-        /// Reçoit les messages de jeu du NetworkManager
-        /// </summary>
         private void OnGameMessageReceived(string messageType, string data)
         {
             if (!isHost)
@@ -740,9 +867,6 @@ namespace BaboonTower.Game
             }
         }
 
-        /// <summary>
-        /// Traite les messages de jeu reçus du serveur (clients uniquement)
-        /// </summary>
         private void ProcessServerGameMessage(string messageType, string data)
         {
             try
@@ -757,9 +881,28 @@ namespace BaboonTower.Game
                         if (int.TryParse(data, out int wave))
                         {
                             gameState.currentWave = wave;
+                            waveCompletedLocally = false; // Reset pour la nouvelle vague
                             OnWaveStarted?.Invoke(wave);
+                            
+                            // IMPORTANT: Les clients doivent aussi démarrer leur WaveManager!
+                            WaveManager waveManager = FindObjectOfType<WaveManager>();
+                            if (waveManager != null)
+                            {
+                                waveManager.StartWave(wave);
+                            }
+                            
                             UpdateUI();
                         }
+                        break;
+                        
+                    case "FIRST_PLAYER_COMPLETED":
+                        var completedMsg = JsonUtility.FromJson<WaveCompletedMessage>(data);
+                        ShowWaveCompletedMessage(completedMsg.playerName, completedMsg.timeUntilNextWave);
+                        break;
+                        
+                    case "WAVE_COUNTDOWN":
+                        var countdownMsg = JsonUtility.FromJson<WaveCountdownMessage>(data);
+                        UpdateWaveCountdownUI(countdownMsg.timeRemaining, countdownMsg.firstPlayer);
                         break;
 
                     case "GAME_TIMER":
@@ -785,11 +928,10 @@ namespace BaboonTower.Game
             }
         }
 
-        /// <summary>
-        /// Traite les demandes de jeu reçues des clients (host uniquement)
-        /// </summary>
         private void ProcessClientGameMessage(string messageType, string data)
         {
+            if (!isHost) return;
+            
             try
             {
                 switch (messageType)
@@ -806,6 +948,10 @@ namespace BaboonTower.Game
                                 UpdateUI();
                             }
                         }
+                        break;
+                        
+                    case "WAVE_COMPLETED":
+                        OnPlayerCompletedWave(data); // data contient le nom du joueur
                         break;
 
                     case "PLAYER_ACTION":
@@ -931,7 +1077,7 @@ namespace BaboonTower.Game
                     castleHPText.text = $"Château: {startingCastleHP}/{startingCastleHP}";
             }
 
-            // État du jeu et timer - UTILISATION CORRECTE DE L'ENUM
+            // État du jeu et timer
             if (gameStateText != null)
             {
                 string stateText = gameState.currentState switch
@@ -986,9 +1132,6 @@ namespace BaboonTower.Game
             }
         }
 
-        /// <summary>
-        /// Appelé quand le NetworkManager déclenche OnGameStarted (depuis le lobby)
-        /// </summary>
         private void OnNetworkGameStarted()
         {
             Debug.Log("Game started signal received from NetworkManager");

@@ -71,47 +71,26 @@ namespace BaboonTower.Game
         /// <summary>
         /// Démarre une nouvelle vague - APPELÉE PAR GameController
         /// </summary>
-        public void StartWave(int waveNumber)
-        {
-            // Seulement l'host gère le spawn des ennemis
-            if (NetworkManager.Instance?.CurrentMode != NetworkMode.Host)
-            {
-                Debug.Log("Not host, skipping wave spawn");
-                return;
-            }
+public void StartWave(int waveNumber)
+{
+    // IMPORTANT: Tous les joueurs (host ET clients) doivent spawn leurs propres ennemis
+    // Chaque joueur gère ses propres ennemis localement
+    
+    if (waveInProgress)
+    {
+        Debug.LogWarning("Wave already in progress!");
+        return;
+    }
 
-            if (waveInProgress)
-            {
-                Debug.LogWarning("Wave already in progress!");
-                return;
-            }
+    if (mapLoader == null)
+    {
+        Debug.LogError("Cannot start wave: MapLoaderV3 is null!");
+        return;
+    }
 
-            if (mapLoader == null)
-            {
-                Debug.LogError("Cannot start wave: MapLoaderV3 is null!");
-                return;
-            }
-
-            if (mapLoader.WorldPath == null || mapLoader.WorldPath.Count < 2)
-            {
-                Debug.LogError("Cannot start wave: Map path not loaded!");
-                return;
-            }
-
-            Debug.Log($"Starting wave {waveNumber} with MapLoaderV3 system");
-            currentWaveNumber = waveNumber;
-            waveInProgress = true;
-            enemiesSpawned = 0;
-            enemiesAlive = 0;
-            activeEnemies.Clear();
-
-            if (currentWaveCoroutine != null)
-            {
-                StopCoroutine(currentWaveCoroutine);
-            }
-
-            currentWaveCoroutine = StartCoroutine(SpawnWaveCoroutine(waveNumber));
-        }
+    Debug.Log($"[{(NetworkManager.Instance?.CurrentMode == NetworkMode.Host ? "HOST" : "CLIENT")}] Starting wave {waveNumber}");
+    StartCoroutine(SpawnWave(waveNumber));
+}
 
         /// <summary>
         /// Arrête la vague en cours
@@ -143,8 +122,12 @@ namespace BaboonTower.Game
         /// <summary>
         /// Coroutine pour spawner les ennemis de la vague
         /// </summary>
-        private IEnumerator SpawnWaveCoroutine(int waveNumber)
+        private IEnumerator SpawnWave(int waveNumber)
         {
+			waveInProgress = true;
+			currentWaveNumber = waveNumber;
+			enemiesSpawned = 0;  // Ajouter cette ligne
+			enemiesAlive = 0;    // Ajouter cette ligne
             // Calculer le nombre d'ennemis pour cette vague
             int totalEnemies = Mathf.RoundToInt(baseEnemiesPerWave * Mathf.Pow(difficultyMultiplier, waveNumber - 1));
             totalEnemies = Mathf.Max(3, totalEnemies);
@@ -195,6 +178,11 @@ namespace BaboonTower.Game
 
             Debug.Log($"Wave {waveNumber} complete! All enemies defeated.");
             waveInProgress = false;
+
+			if (gameController != null)
+			{
+				gameController.OnLocalWaveCompleted();
+			}
         }
 
         /// <summary>
@@ -259,18 +247,11 @@ namespace BaboonTower.Game
         /// <summary>
         /// Méthodes de debug
         /// </summary>
-        [ContextMenu("Force Start Wave 1")]
-        private void DebugStartWave1()
-        {
-            if (NetworkManager.Instance?.CurrentMode == NetworkMode.Host)
-            {
-                StartWave(1);
-            }
-            else
-            {
-                Debug.LogWarning("Must be host to start wave");
-            }
-        }
+		[ContextMenu("Force Start Wave 1")]
+		private void DebugStartWave1()
+		{
+			StartWave(1);
+		}
 
         [ContextMenu("Print Wave Status")]
         private void DebugPrintStatus()

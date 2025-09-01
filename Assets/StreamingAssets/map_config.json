@@ -1,0 +1,10 @@
+{
+  "preparationTime": 10,      // Compte à rebours initial
+  "timeBetweenWaves": 15,     // Délai après le premier finissant
+  "startingGold": 10,         // Or de départ
+  "startingCastleHP": 100,    // PV du château
+  "waveSettings": {
+    "spawnDelay": 0.5,        // Délai entre chaque ennemi
+    "difficultyMultiplier": 1.5  // Augmentation par vague
+  }
+}
