@@ -190,16 +190,19 @@ namespace BaboonTower.Game
         }
 
         /// <summary>
-        /// Crée le visuel de l'ennemi avec SpriteRenderer
+        /// Crée le visuel de l'ennemi - VERSION CORRIGÉE
         /// </summary>
         private void CreateVisual()
         {
             if (visual != null) Destroy(visual);
 
-            visual = new GameObject("Visual");
+            // Créer un objet 3D simple (cube) au lieu d'un sprite pour être sûr qu'il soit visible
+            visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            visual.name = "Visual";
             visual.transform.SetParent(transform);
             visual.transform.localPosition = Vector3.zero;
 
+<<<<<<< Updated upstream
             // Utiliser un SpriteRenderer au lieu d'un cube
             SpriteRenderer spriteRenderer = visual.AddComponent<SpriteRenderer>();
             
@@ -207,12 +210,16 @@ namespace BaboonTower.Game
             Texture2D texture = new Texture2D(32, 32);
             Color[] pixels = new Color[32 * 32];
             for (int i = 0; i < pixels.Length; i++)
+=======
+            // Supprimer le collider (on ne veut pas qu'il interfère)
+            Collider visualCollider = visual.GetComponent<Collider>();
+            if (visualCollider != null) 
+>>>>>>> Stashed changes
             {
-                pixels[i] = enemyColor;
+                Destroy(visualCollider);
             }
-            texture.SetPixels(pixels);
-            texture.Apply();
 
+<<<<<<< Updated upstream
             Sprite enemySprite = Sprite.Create(
                 texture,
                 new Rect(0, 0, 32, 32),
@@ -226,15 +233,28 @@ namespace BaboonTower.Game
             spriteRenderer.sortingOrder = 10; // Plus élevé que la route (qui est à 1)
             spriteRenderer.sortingLayerName = "Default"; // Ou créer un layer "Enemies" si nécessaire
 
+=======
+            // Configurer le renderer
+            Renderer renderer = visual.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                // Créer un matériau avec la couleur de l'ennemi
+                Material mat = new Material(Shader.Find("Standard"));
+                mat.color = enemyColor;
+                renderer.material = mat;
+            }
+            
+>>>>>>> Stashed changes
             // Taille selon le type
             float scale = enemyType switch
             {
-                EnemyType.Small => 0.5f,
-                EnemyType.Medium => 0.7f,
-                EnemyType.High => 0.9f,
-                _ => 0.6f
+                EnemyType.Small => 0.3f,
+                EnemyType.Medium => 0.5f,
+                EnemyType.High => 0.7f,
+                _ => 0.4f
             };
             visual.transform.localScale = Vector3.one * scale;
+<<<<<<< Updated upstream
 
             // Ajouter un contour pour mieux voir l'ennemi
             AddOutlineToSprite(spriteRenderer);
@@ -273,6 +293,10 @@ namespace BaboonTower.Game
             outlineRenderer.sprite = outlineSprite;
             outlineRenderer.sortingOrder = 9; // Juste derrière l'ennemi principal
             outlineRenderer.color = new Color(0, 0, 0, 0.5f); // Semi-transparent
+=======
+            
+            Debug.Log($"[Enemy] Visual created - Type: {enemyType}, Scale: {scale}, Color: {enemyColor}");
+>>>>>>> Stashed changes
         }
 
         /// <summary>
@@ -280,6 +304,7 @@ namespace BaboonTower.Game
         /// </summary>
         private void CreateHealthBar()
         {
+<<<<<<< Updated upstream
             if (healthBar != null) Destroy(healthBar.transform.parent.gameObject);
 
             GameObject barContainer = new GameObject("HealthBar");
@@ -315,9 +340,53 @@ namespace BaboonTower.Game
             Texture2D texture = new Texture2D(width, height);
             Color[] pixels = new Color[width * height];
             for (int i = 0; i < pixels.Length; i++)
+=======
+            // Conteneur pour la barre de vie
+            GameObject healthBarContainer = new GameObject("HealthBar");
+            healthBarContainer.transform.SetParent(transform);
+            healthBarContainer.transform.localPosition = new Vector3(0, 0.8f, 0);
+
+            // Background de la barre
+            healthBarBg = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            healthBarBg.name = "Background";
+            healthBarBg.transform.SetParent(healthBarContainer.transform);
+            healthBarBg.transform.localPosition = Vector3.zero;
+            healthBarBg.transform.localScale = new Vector3(0.6f, 0.1f, 0.01f);
+            
+            // Supprimer le collider
+            Collider bgCollider = healthBarBg.GetComponent<Collider>();
+            if (bgCollider != null) Destroy(bgCollider);
+            
+            // Matériau noir pour le background
+            Renderer bgRenderer = healthBarBg.GetComponent<Renderer>();
+            if (bgRenderer != null)
             {
-                pixels[i] = color;
+                Material bgMat = new Material(Shader.Find("Standard"));
+                bgMat.color = Color.black;
+                bgRenderer.material = bgMat;
             }
+
+            // Barre de vie
+            healthBar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            healthBar.name = "Health";
+            healthBar.transform.SetParent(healthBarContainer.transform);
+            healthBar.transform.localPosition = Vector3.zero;
+            healthBar.transform.localScale = new Vector3(0.55f, 0.08f, 0.005f);
+            
+            // Supprimer le collider
+            Collider hpCollider = healthBar.GetComponent<Collider>();
+            if (hpCollider != null) Destroy(hpCollider);
+            
+            // Matériau vert pour la barre de vie
+            Renderer hpRenderer = healthBar.GetComponent<Renderer>();
+            if (hpRenderer != null)
+>>>>>>> Stashed changes
+            {
+                Material hpMat = new Material(Shader.Find("Standard"));
+                hpMat.color = Color.green;
+                hpRenderer.material = hpMat;
+            }
+<<<<<<< Updated upstream
             texture.SetPixels(pixels);
             texture.Apply();
 
@@ -327,6 +396,8 @@ namespace BaboonTower.Game
                 new Vector2(0.5f, 0.5f),
                 100f // pixels per unit
             );
+=======
+>>>>>>> Stashed changes
         }
 
         /// <summary>
@@ -347,9 +418,10 @@ namespace BaboonTower.Game
 
             float healthPercent = (float)currentHealth / maxHealth;
             Vector3 scale = healthBar.transform.localScale;
-            scale.x = healthPercent;
+            scale.x = 0.55f * healthPercent;
             healthBar.transform.localScale = scale;
 
+<<<<<<< Updated upstream
             // Décaler la position pour que la barre se réduise depuis la gauche
             Vector3 pos = healthBar.transform.localPosition;
             pos.x = -(1f - healthPercent) * 0.2f; // Ajuster selon la taille de la barre
@@ -357,13 +429,18 @@ namespace BaboonTower.Game
 
             SpriteRenderer renderer = healthBar.GetComponent<SpriteRenderer>();
             if (renderer != null)
+=======
+            // Changer la couleur selon les PV
+            Renderer renderer = healthBar.GetComponent<Renderer>();
+            if (renderer != null && renderer.material != null)
+>>>>>>> Stashed changes
             {
                 if (healthPercent > 0.6f)
-                    renderer.color = Color.green;
+                    renderer.material.color = Color.green;
                 else if (healthPercent > 0.3f)
-                    renderer.color = Color.yellow;
+                    renderer.material.color = Color.yellow;
                 else
-                    renderer.color = Color.red;
+                    renderer.material.color = Color.red;
             }
         }
 
@@ -392,20 +469,25 @@ namespace BaboonTower.Game
 
             OnEnemyKilled?.Invoke(this, goldReward);
 
-            // Donner l'or au joueur (seulement si on est l'host)
+            // Donner de l'or au joueur (seulement si on est l'host)
             if (NetworkManager.Instance?.CurrentMode == NetworkMode.Host && gameController != null)
             {
                 var players = gameController.GameStateData?.playersStates;
                 if (players != null && players.Count > 0)
                 {
+<<<<<<< Updated upstream
                     gameController.AddGoldToPlayer(players[0].playerId, goldReward);
                     Debug.Log($"Gave {goldReward} gold to player {players[0].playerId}");
+=======
+                    gameController.AddGold(players[0].playerId, goldReward);
+>>>>>>> Stashed changes
                 }
             }
 
             Destroy(gameObject);
         }
 
+<<<<<<< Updated upstream
         // Getters publics
         public EnemyType GetEnemyType() => enemyType;
         public int GetGoldReward() => goldReward;
@@ -415,21 +497,30 @@ namespace BaboonTower.Game
 
         // Debug
         private void OnDrawGizmos()
+=======
+        /// <summary>
+        /// Obtient la position actuelle de l'ennemi
+        /// </summary>
+        public Vector3 GetPosition()
         {
-            if (pathToFollow != null && pathToFollow.Count > 1)
-            {
-                Gizmos.color = Color.yellow;
-                for (int i = 0; i < pathToFollow.Count - 1; i++)
-                {
-                    Gizmos.DrawLine(pathToFollow[i], pathToFollow[i + 1]);
-                }
+            return transform.position;
+        }
 
-                if (currentWaypointIndex < pathToFollow.Count)
-                {
-                    Gizmos.color = Color.red;
-                    Gizmos.DrawWireSphere(pathToFollow[currentWaypointIndex], 0.3f);
-                }
-            }
+        /// <summary>
+        /// Obtient la santé actuelle
+        /// </summary>
+        public int GetCurrentHealth()
+>>>>>>> Stashed changes
+        {
+            return currentHealth;
+        }
+
+        /// <summary>
+        /// Obtient la santé maximum
+        /// </summary>
+        public int GetMaxHealth()
+        {
+            return maxHealth;
         }
     }
 }
