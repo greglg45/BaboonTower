@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections;
 using BaboonTower.Network;
 using System.Linq;
+using BaboonTower.Core;  // AJOUT DE CETTE LIGNE
 
 namespace BaboonTower.Game
 {
@@ -115,6 +116,7 @@ namespace BaboonTower.Game
         [SerializeField] private int startingCastleHP = 100;
         [SerializeField] private float preparationTime = 10f;
         [SerializeField] private float waveStartDelay = 5f;
+        [SerializeField] private float initialPreparationTime = 10f; // Compte à rebours initial
 
         [Header("Wave Synchronization")]
         [SerializeField] private float timeBetweenWaves = 15f; // Temps après qu'un joueur finit avant la prochaine vague
@@ -130,6 +132,10 @@ namespace BaboonTower.Game
         [SerializeField] private TextMeshProUGUI gameStateText;
         [SerializeField] private TextMeshProUGUI timerText;
         [SerializeField] private Button backToLobbyButton;
+        
+        [Header("Notification UI")]
+        [SerializeField] private GameObject notificationPanel;
+        [SerializeField] private TextMeshProUGUI notificationText;
 
         [Header("Players UI")]
         [SerializeField] private Transform playersUIParent;
@@ -150,8 +156,12 @@ namespace BaboonTower.Game
         private GameStateData gameState;
         public GameStateData GameStateData => gameState;
         private NetworkManager networkManager;
+        private WaveManager waveManager;
         private bool isHost;
         private PlayerGameState localPlayerState;
+        
+        // Configuration des vagues
+        private WaveConfigurationMessage waveConfiguration;
 
         // Synchronisation réseau
         private float lastSyncTime = 0f;
@@ -172,6 +182,7 @@ namespace BaboonTower.Game
             InitializeGame();
             SetupNetworkEvents();
             SetupUI();
+            SetupWaveManagerEvents();
         }
 
         private void Update()
@@ -183,6 +194,7 @@ namespace BaboonTower.Game
                 lastSyncTime = Time.time;
             }
 
+<<<<<<< Updated upstream
             // Gestion du countdown entre vagues
             if (isHost && nextWaveCountdown > 0)
             {
@@ -206,6 +218,9 @@ namespace BaboonTower.Game
             }
 
             // Raccourcis clavier de debug (seulement en mode debug et pour l'host)
+=======
+            // Raccourcis clavier de debug (seulement en mode debug)
+>>>>>>> Stashed changes
             if (allowSinglePlayerDebug)
             {
                 if (Input.GetKeyDown(forceStartGameKey))
@@ -238,6 +253,7 @@ namespace BaboonTower.Game
         private void OnDestroy()
         {
             RemoveNetworkEvents();
+            RemoveWaveManagerEvents();
         }
 
         #region Initialization
@@ -259,6 +275,8 @@ namespace BaboonTower.Game
             }
 
             networkManager = NetworkManager.Instance;
+            waveManager = FindObjectOfType<WaveManager>();
+            
             if (networkManager == null)
             {
                 Debug.LogError("NetworkManager not found! Returning to main menu.");
@@ -266,8 +284,11 @@ namespace BaboonTower.Game
                 return;
             }
 
-            isHost = networkManager.CurrentMode == NetworkMode.Host;
+            isHost = networkManager.IsAuthoritativeHost;
             gameState = new GameStateData();
+            
+            // Charger la configuration des vagues
+            LoadWaveConfiguration();
 
             // Initialiser l'état des joueurs basé sur les joueurs connectés
             InitializePlayersStates();
@@ -276,6 +297,45 @@ namespace BaboonTower.Game
             FindLocalPlayerState();
 
             Debug.Log($"Game initialized - Host: {isHost}, Players: {gameState.playersStates.Count}");
+        }
+        
+        private void LoadWaveConfiguration()
+        {
+            string waveConfigJson = PlayerPrefs.GetString("WaveConfiguration", "");
+            
+            if (!string.IsNullOrEmpty(waveConfigJson))
+            {
+                try
+                {
+                    waveConfiguration = JsonUtility.FromJson<WaveConfigurationMessage>(waveConfigJson);
+                    initialPreparationTime = waveConfiguration.initialPreparationTime;
+                    preparationTime = waveConfiguration.preparationTimeBetweenWaves;
+                    
+                    Debug.Log($"[GameController] Wave configuration loaded: Initial={initialPreparationTime}s, Prep={preparationTime}s");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[GameController] Error loading wave configuration: {e.Message}");
+                    LoadDefaultWaveConfiguration();
+                }
+            }
+            else
+            {
+                LoadDefaultWaveConfiguration();
+            }
+        }
+        
+        private void LoadDefaultWaveConfiguration()
+        {
+            waveConfiguration = new WaveConfigurationMessage
+            {
+                initialPreparationTime = 10f,
+                delayAfterFirstFinish = 15f,
+                preparationTimeBetweenWaves = 5f
+            };
+            
+            initialPreparationTime = waveConfiguration.initialPreparationTime;
+            preparationTime = waveConfiguration.preparationTimeBetweenWaves;
         }
 
         private void InitializePlayersStates()
@@ -323,9 +383,7 @@ namespace BaboonTower.Game
             if (localPlayerState == null)
             {
                 Debug.LogError("Could not find local player state!");
-                Debug.Log($"Available players: {string.Join(", ", gameState.playersStates.ConvertAll(p => $"{p.playerName} (ID:{p.playerId})"))}");
-                Debug.Log($"Connected players: {string.Join(", ", networkManager.ConnectedPlayers.ConvertAll(p => $"{p.playerName} (ID:{p.playerId}, Host:{p.isHost})"))}");
-
+                
                 // Fallback: prendre le premier joueur disponible
                 if (gameState.playersStates.Count > 0)
                 {
@@ -363,6 +421,28 @@ namespace BaboonTower.Game
                 networkManager.OnGameMessage -= OnGameMessageReceived;
             }
         }
+        
+        private void SetupWaveManagerEvents()
+        {
+            if (waveManager != null)
+            {
+                waveManager.OnPlayerFinishedFirst += OnPlayerFinishedFirst;
+                waveManager.OnNextWaveTimerUpdate += OnNextWaveTimerUpdate;
+                waveManager.OnWaveStarted += OnWaveStartedByManager;
+                waveManager.OnWaveCompleted += OnWaveCompletedByManager;
+            }
+        }
+        
+        private void RemoveWaveManagerEvents()
+        {
+            if (waveManager != null)
+            {
+                waveManager.OnPlayerFinishedFirst -= OnPlayerFinishedFirst;
+                waveManager.OnNextWaveTimerUpdate -= OnNextWaveTimerUpdate;
+                waveManager.OnWaveStarted -= OnWaveStartedByManager;
+                waveManager.OnWaveCompleted -= OnWaveCompletedByManager;
+            }
+        }
 
         private void SetupUI()
         {
@@ -384,6 +464,7 @@ namespace BaboonTower.Game
 
         #endregion
 
+<<<<<<< Updated upstream
         #region Wave Management
 
         // Méthode pour signaler qu'un joueur a fini sa vague
@@ -470,6 +551,42 @@ namespace BaboonTower.Game
             }
         }
 
+=======
+        #region Wave Manager Events
+        
+        private void OnPlayerFinishedFirst(int playerId, string message)
+        {
+            ShowNotification(message, 5f);
+            
+            if (gameStateText != null)
+{
+    var p = networkManager?.ConnectedPlayers?.FirstOrDefault(pp => pp.playerId == playerId);
+    var displayName = string.IsNullOrEmpty(p?.playerName) ? $"Joueur {playerId}" : p.playerName;
+    gameStateText.text = $"{displayName} a fini en premier !";
+}
+        }
+        
+        private void OnNextWaveTimerUpdate(float remainingTime)
+        {
+            if (timerText != null)
+            {
+                timerText.text = $"Prochaine vague dans: {Mathf.Ceil(remainingTime)}s";
+                timerText.color = remainingTime <= 5 ? Color.red : Color.white;
+            }
+        }
+        
+        private void OnWaveStartedByManager(int waveNumber)
+        {
+            gameState.currentWave = waveNumber;
+            UpdateUI();
+        }
+        
+        private void OnWaveCompletedByManager(int waveNumber)
+        {
+            Debug.Log($"[GameController] Wave {waveNumber} completed");
+        }
+        
+>>>>>>> Stashed changes
         #endregion
 
         #region Debug Methods
@@ -535,9 +652,9 @@ namespace BaboonTower.Game
         [ContextMenu("Force Next Wave (Debug)")]
         private void DebugForceNextWave()
         {
-            if (isHost && gameState.currentState == GameState.PreparationPhase)
+            if (isHost && waveManager != null)
             {
-                gameState.waveTimer = 0f;
+                StartNextWave();
                 Debug.Log("[DEBUG] Forced next wave");
             }
         }
@@ -569,6 +686,12 @@ namespace BaboonTower.Game
             {
                 Debug.Log($"  - {player.playerName} (ID:{player.playerId}) Gold:{player.gold} HP:{player.castleHP} Alive:{player.isAlive}");
             }
+            
+            if (waveManager != null)
+            {
+                Debug.Log($"Wave Manager - Current Wave: {waveManager.GetCurrentWave()}, Enemies: {waveManager.GetActiveEnemiesCount()}");
+            }
+            
             Debug.Log("=======================");
         }
 
@@ -599,6 +722,7 @@ namespace BaboonTower.Game
                 Debug.Log("[DEBUG] Starting game in single player debug mode");
             }
 
+<<<<<<< Updated upstream
             // Informer tous les clients que le jeu commence
             BroadcastGameState(GameState.WaitingForPlayers);
             SetGameState(GameState.WaitingForPlayers);
@@ -642,10 +766,44 @@ namespace BaboonTower.Game
                 UpdateUI();
                 yield return null;
             }
-        }
-
-        private IEnumerator WavePhase()
+=======
+    // Phase d'attente avec compte à rebours initial
+    BroadcastGameState(GameState.WaitingForPlayers);
+    SetGameState(GameState.WaitingForPlayers);
+    
+    // IMPORTANT : S'assurer que tous les clients sont synchronisés
+    yield return new WaitForSeconds(1f);
+            
+float countdownTimer = initialPreparationTime;
+    while (countdownTimer > 0)
+    {
+        BroadcastGameTimer(countdownTimer, "initial");
+        
+        if (timerText != null)
         {
+            timerText.text = $"Début dans: {Mathf.Ceil(countdownTimer)}s";
+>>>>>>> Stashed changes
+        }
+        
+        yield return new WaitForSeconds(1f);
+        countdownTimer -= 1f;
+    }
+
+// Phase de préparation initiale
+    BroadcastGameState(GameState.PreparationPhase);
+    SetGameState(GameState.PreparationPhase);
+    
+    ShowNotification("Phase d'achat - Placez vos tours !", 3f);
+    
+    // Timer avant la première vague
+    float prepTimer = waveStartDelay;
+    while (prepTimer > 0)
+    {
+        BroadcastGameTimer(prepTimer, "preparation");
+        
+        if (timerText != null)
+        {
+<<<<<<< Updated upstream
             if (!isHost) yield break;
 
             gameState.currentWave++;
@@ -681,7 +839,64 @@ namespace BaboonTower.Game
 
             // Vérifier les éliminations et gagnant
             CheckGameEndConditions();
+=======
+            timerText.text = $"Première vague dans: {Mathf.Ceil(prepTimer)}s";
+>>>>>>> Stashed changes
         }
+        
+        yield return new WaitForSeconds(1f);
+        prepTimer -= 1f;
+    }
+
+    // IMPORTANT : Petit délai pour s'assurer que tout le monde est prêt
+    yield return new WaitForSeconds(0.5f);
+
+    // Démarrer la première vague
+    StartFirstWave();
+}
+        
+/// <summary>
+/// StartFirstWave - Démarre la première vague avec synchronisation réseau
+/// </summary>
+private void StartFirstWave()
+{
+    if (!isHost) return;
+    
+    gameState.currentWave = 1;
+    SetGameState(GameState.WaveActive);
+    BroadcastGameState(GameState.WaveActive);
+    
+    // IMPORTANT : Petit délai pour s'assurer que tous les clients sont synchronisés
+    StartCoroutine(DelayedFirstWave());
+}
+  
+/// <summary>
+/// DelayedFirstWave - Lance la première vague avec un délai pour la synchronisation
+/// </summary>
+private IEnumerator DelayedFirstWave()
+{
+    // Attendre que tous les clients soient prêts
+    yield return new WaitForSeconds(1f);
+    
+    if (waveManager != null)
+    {
+        Debug.Log("[GameController] Starting first wave with delay for sync");
+        waveManager.StartWave(1);
+    }
+    else
+    {
+        Debug.LogError("[GameController] WaveManager not found!");
+    }
+}      
+        /// <summary>
+        /// StartNextWave - Démarre la prochaine vague (appelé par WaveManager après le timer)
+        /// </summary>
+        public void StartNextWave()
+{
+    // SUPPRIMER cette méthode ou la rendre vide
+    // Le WaveManager gère directement le démarrage des vagues
+    Debug.Log("[GameController] StartNextWave called but WaveManager handles this now");
+}
 
         #endregion
 
@@ -718,7 +933,11 @@ namespace BaboonTower.Game
                 UpdateUI();
             }
         }
+<<<<<<< Updated upstream
 
+=======
+        
+>>>>>>> Stashed changes
         private void SetGameState(GameState newState)
         {
             if (gameState.currentState != newState)
@@ -729,7 +948,11 @@ namespace BaboonTower.Game
                 Debug.Log($"Game State changed to: {newState}");
             }
         }
+<<<<<<< Updated upstream
 
+=======
+        
+>>>>>>> Stashed changes
         private void EliminatePlayer(PlayerGameState player)
         {
             if (player.isEliminated) return;
@@ -763,11 +986,19 @@ namespace BaboonTower.Game
                 {
                     OnGameWinner?.Invoke(winner);
                     BroadcastGameWinner(winner);
+                    ShowNotification($"🏆 {winner.playerName} remporte la partie !", 10f);
                     Debug.Log($"Game Over! Winner: {winner.playerName}");
                 }
                 else if (allowSinglePlayerDebug)
                 {
+                    ShowNotification("Game Over !", 10f);
                     Debug.Log("[DEBUG] Game Over in single player debug mode");
+                }
+                
+                // Arrêter les vagues
+                if (waveManager != null)
+                {
+                    waveManager.StopCurrentWave();
                 }
             }
         }
@@ -852,27 +1083,79 @@ namespace BaboonTower.Game
             string json = JsonUtility.ToJson(winner);
             networkManager.BroadcastGameMessage("GAME_WINNER", json);
         }
+<<<<<<< Updated upstream
 
         private void OnGameMessageReceived(string messageType, string data)
         {
             if (!isHost)
+=======
+private void Awake()
+{
+    // Créer le DebugLogger s'il n'existe pas
+    if (FindObjectOfType<DebugLogger>() == null)
+    {
+        GameObject loggerGO = new GameObject("DebugLogger");
+        loggerGO.AddComponent<DebugLogger>();
+    }
+}
+ /// <summary>
+/// OnGameMessageReceived - Reçoit les messages de jeu du NetworkManager (CORRIGÉ)
+/// </summary>
+private void OnGameMessageReceived(string messageType, string data)
+{
+    // CORRECTION : Certains messages doivent être traités par le WaveManager directement
+    // indépendamment du fait qu'on soit host ou client
+    
+    // Messages qui doivent TOUJOURS aller au WaveManager
+    switch (messageType)
+    {
+        case "WAVE_START_SYNC":
+        case "FIRST_FINISHER":
+        case "NEXT_WAVE_TIMER":
+        case "WAVE_COMPLETED":  // AJOUT IMPORTANT
+            if (waveManager != null)
+>>>>>>> Stashed changes
             {
-                // Client : traiter les messages du serveur
-                ProcessServerGameMessage(messageType, data);
+                Debug.Log($"[GameController] Forwarding {messageType} to WaveManager");
+                waveManager.ProcessNetworkMessage(messageType, data);
             }
-            else
-            {
-                // Host : traiter les demandes des clients
-                ProcessClientGameMessage(messageType, data);
-            }
-        }
+            return; // Ne pas continuer le traitement
+    }
+    
+    // Traitement normal pour les autres messages
+    if (!isHost)
+    {
+        // Client : traiter les messages du serveur
+        ProcessServerGameMessage(messageType, data);
+    }
+    else
+    {
+        // Host : traiter les demandes des clients  
+        ProcessClientGameMessage(messageType, data);
+    }
+}
 
+<<<<<<< Updated upstream
         private void ProcessServerGameMessage(string messageType, string data)
+=======
+        /// <summary>
+        /// Traite les messages de jeu reçus du serveur (clients uniquement)
+        /// </summary>
+private void ProcessServerGameMessage(string messageType, string data)
+{
+    try
+    {
+        switch (messageType)
+>>>>>>> Stashed changes
         {
-            try
-            {
-                switch (messageType)
+            case "GAME_STATE_UPDATE":
+                HandleGameStateMessage(data);
+                break;
+
+            case "WAVE_STARTED":
+                if (int.TryParse(data, out int wave))
                 {
+<<<<<<< Updated upstream
                     case "GAME_STATE_UPDATE":
                         HandleGameStateMessage(data);
                         break;
@@ -920,14 +1203,48 @@ namespace BaboonTower.Game
                     case "GAME_WINNER":
                         HandleGameWinnerMessage(data);
                         break;
+=======
+                    gameState.currentWave = wave;
+                    OnWaveStarted?.Invoke(wave);
+                    UpdateUI();
+>>>>>>> Stashed changes
                 }
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError($"Error processing server game message {messageType}: {e.Message}");
-            }
-        }
+                break;
 
+            case "GAME_TIMER":
+                HandleGameTimerMessage(data);
+                break;
+
+            case "PLAYERS_STATES":
+                HandlePlayerStatesMessage(data);
+                break;
+
+            case "PLAYER_ELIMINATED":
+                HandlePlayerEliminatedMessage(data);
+                break;
+
+            case "GAME_WINNER":
+                HandleGameWinnerMessage(data);
+                break;
+                
+            // Transférer seulement les messages de synchronisation de vagues
+            case "WAVE_START_SYNC":
+            case "FIRST_FINISHER":
+            case "NEXT_WAVE_TIMER":
+                if (waveManager != null)
+                {
+                    waveManager.ProcessNetworkMessage(messageType, data);
+                }
+                break;
+        }
+    }
+    catch (System.Exception e)
+    {
+        Debug.LogError($"Error processing server game message {messageType}: {e.Message}");
+    }
+}
+
+<<<<<<< Updated upstream
         private void ProcessClientGameMessage(string messageType, string data)
         {
             if (!isHost) return;
@@ -958,13 +1275,67 @@ namespace BaboonTower.Game
                         // TODO: Traiter les actions des joueurs (placement de tours, etc.)
                         Debug.Log($"Received player action: {data}");
                         break;
+=======
+        /// <summary>
+        /// Traite les demandes de jeu reçues des clients (host uniquement)
+        /// </summary>
+private void ProcessClientGameMessage(string messageType, string data)
+{
+    try
+    {
+        switch (messageType)
+        {
+            case "SPEND_GOLD_REQUEST":
+                var parts = data.Split('|');
+                if (parts.Length == 2 && int.TryParse(parts[0], out int playerId) && int.TryParse(parts[1], out int amount))
+                {
+                    var player = gameState.playersStates.Find(p => p.playerId == playerId);
+                    if (player != null && player.gold >= amount)
+                    {
+                        player.gold -= amount;
+                        BroadcastPlayerStates();
+                        UpdateUI();
+                    }
+>>>>>>> Stashed changes
                 }
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError($"Error processing client game message {messageType}: {e.Message}");
-            }
+                break;
+
+            case "GOLD_REQUEST":
+                // Un client demande à gagner de l'or
+                parts = data.Split('|');
+                if (parts.Length == 2 && int.TryParse(parts[0], out playerId) && int.TryParse(parts[1], out int gold))
+                {
+                    AddGoldToPlayer(playerId, gold);
+                }
+                break;
+case "WAVE_COMPLETED":
+                // Transférer au WaveManager
+                if (waveManager != null)
+                {
+                    Debug.Log("[GameController Host] Forwarding WAVE_COMPLETED to WaveManager");
+                    waveManager.ProcessNetworkMessage("WAVE_COMPLETED", data);
+                }
+                break;
+            case "DAMAGE_REQUEST":
+                // Un client demande à prendre des dégâts
+                parts = data.Split('|');
+                if (parts.Length == 2 && int.TryParse(parts[0], out playerId) && int.TryParse(parts[1], out int damage))
+                {
+                    DamageCastle(playerId, damage);
+                }
+                break;
+
+            case "PLAYER_ACTION":
+                // Actions du joueur (placement de tours, etc.)
+                Debug.Log($"Received player action: {data}");
+                break;
         }
+    }
+    catch (System.Exception e)
+    {
+        Debug.LogError($"Error processing client game message {messageType}: {e.Message}");
+    }
+}
 
         private void HandleGameStateMessage(string data)
         {
@@ -991,6 +1362,22 @@ namespace BaboonTower.Game
             {
                 var timerMsg = JsonUtility.FromJson<GameTimerMessage>(data);
                 gameState.waveTimer = timerMsg.timer;
+                
+                if (timerMsg.phase == "initial")
+                {
+                    if (timerText != null)
+                    {
+                        timerText.text = $"Début dans: {Mathf.Ceil(timerMsg.timer)}s";
+                    }
+                }
+                else if (timerMsg.phase == "preparation")
+                {
+                    if (timerText != null)
+                    {
+                        timerText.text = $"Première vague dans: {Mathf.Ceil(timerMsg.timer)}s";
+                    }
+                }
+                
                 UpdateUI();
             }
             catch (System.Exception e)
@@ -1024,6 +1411,7 @@ namespace BaboonTower.Game
             {
                 var eliminatedPlayer = JsonUtility.FromJson<PlayerGameState>(data);
                 OnPlayerEliminated?.Invoke(eliminatedPlayer);
+                ShowNotification($"☠️ {eliminatedPlayer.playerName} a été éliminé !", 3f);
                 Debug.Log($"Player {eliminatedPlayer.playerName} was eliminated!");
             }
             catch (System.Exception e)
@@ -1038,6 +1426,7 @@ namespace BaboonTower.Game
             {
                 var winner = JsonUtility.FromJson<PlayerGameState>(data);
                 OnGameWinner?.Invoke(winner);
+                ShowNotification($"🏆 {winner.playerName} remporte la partie !", 10f);
                 Debug.Log($"Game Over! Winner: {winner.playerName}");
             }
             catch (System.Exception e)
@@ -1049,6 +1438,28 @@ namespace BaboonTower.Game
         #endregion
 
         #region UI Updates
+        
+        private void ShowNotification(string message, float duration = 3f)
+        {
+            if (notificationPanel != null && notificationText != null)
+            {
+                notificationText.text = message;
+                notificationPanel.SetActive(true);
+                
+                CancelInvoke(nameof(HideNotification));
+                Invoke(nameof(HideNotification), duration);
+            }
+            
+            Debug.Log($"[Notification] {message}");
+        }
+        
+        private void HideNotification()
+        {
+            if (notificationPanel != null)
+            {
+                notificationPanel.SetActive(false);
+            }
+        }
 
         private void UpdateUI()
         {
@@ -1091,21 +1502,21 @@ namespace BaboonTower.Game
                 gameStateText.text = stateText;
             }
 
-            if (timerText != null)
+            // Timer et infos de debug
+            if (timerText != null && gameState.currentState != GameState.WaveActive)
             {
                 if (gameState.currentState == GameState.PreparationPhase)
                 {
                     timerText.text = $"Prochaine vague dans: {Mathf.Ceil(gameState.waveTimer)}s";
                 }
-                else
-                {
-                    timerText.text = "";
-                }
 
                 // Afficher les infos de debug si activé
                 if (allowSinglePlayerDebug && isHost)
                 {
-                    timerText.text += $"\n[DEBUG] F1:Start F2:+Gold F3:Damage F4:Wave F5:Info";
+                    string debugText = timerText.text;
+                    if (!string.IsNullOrEmpty(debugText)) debugText += "\n";
+                    debugText += "[DEBUG] F1:Start F2:+Gold F3:Damage F4:Wave F5:Info";
+                    timerText.text = debugText;
                 }
             }
 

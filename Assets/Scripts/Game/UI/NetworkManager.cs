@@ -6,6 +6,7 @@ using System.Threading;
 using System.Collections.Generic;
 using System;
 using System.Linq;
+using BaboonTower.Game;
 
 namespace BaboonTower.Network
 {
@@ -84,6 +85,20 @@ namespace BaboonTower.Network
 
         public NetworkMode CurrentMode { get; private set; } = NetworkMode.None;
         public ConnectionState CurrentState { get; private set; } = ConnectionState.Disconnected;
+ /// <summary>
+        /// Vrai uniquement si ce process tient réellement le serveur (socket + thread actifs).
+        /// Permet de différencier un "faux host" forcé par du debug/reflection.
+        /// </summary>
+        public bool IsAuthoritativeHost
+        {
+            get
+            {
+                return CurrentMode == NetworkMode.Host
+                       && server != null
+                       && serverThread != null
+                       && serverThread.IsAlive;
+            }
+        }
 
         [Header("Player")]
         [SerializeField] private string playerName = "Player";
@@ -108,50 +123,110 @@ namespace BaboonTower.Network
         public List<PlayerData> ConnectedPlayers { get; private set; } = new List<PlayerData>();
 
         private bool isRunning = false;
+        
+        // Configuration des vagues
+        private WaveConfigurationMessage currentWaveConfig;
 
-        // NOUVELLES MÉTHODES publiques pour GameController
+        #region Public API
 
         /// <summary>
-        /// Diffuse un message de jeu à tous les clients (Host only)
+        /// BroadcastMessage - Diffuse un message à tous les clients (Host only)
+        /// </summary>
+public void BroadcastMessage(string messageType, string data)
+{
+    if (CurrentMode != NetworkMode.Host) return;
+
+    NetworkMessage message = new NetworkMessage(messageType, data);
+    string json = JsonUtility.ToJson(message);
+    byte[] bytes = Encoding.UTF8.GetBytes(json);
+
+    Debug.Log($"[NetworkManager Host] Broadcasting: {messageType} to {connectedClients.Count} clients");
+
+    var clientsToRemove = new List<ConnectedClient>();
+
+    foreach (var client in connectedClients)
+    {
+        try
+        {
+            if (client.tcpClient.Connected)
+            {
+                client.stream.Write(bytes, 0, bytes.Length);
+                client.stream.Flush();
+                Debug.Log($"[NetworkManager Host] Sent {messageType} to client {client.playerData.playerId}");
+            }
+            else
+            {
+                clientsToRemove.Add(client);
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[NetworkManager Host] Error sending to client: {e.Message}");
+            clientsToRemove.Add(client);
+        }
+    }
+
+    foreach (var client in clientsToRemove)
+    {
+        RemoveClient(client);
+    }
+}
+
+        /// <summary>
+        /// BroadcastGameMessage - Diffuse un message de jeu à tous les clients (Host only)
         /// </summary>
         public void BroadcastGameMessage(string messageType, string data)
         {
             if (CurrentMode != NetworkMode.Host) return;
 
             BroadcastMessage(messageType, data);
-            Debug.Log($"Broadcasting game message: {messageType}");
+            Debug.Log($"[NetworkManager] Broadcasting game message: {messageType}");
         }
 
         /// <summary>
-        /// Envoie un message de jeu au serveur (Client only)
+        /// SendGameMessageToServer - Envoie un message de jeu au serveur (Client only)
         /// </summary>
-        public void SendGameMessageToServer(string messageType, string data)
+public void SendGameMessageToServer(string messageType, string data)
         {
-            if (CurrentMode != NetworkMode.Client) return;
+            // Autoriser l'envoi si on a une vraie connexion client vivante
+            // (cas où CurrentMode a été forcé à Host via debug/reflection).
+            bool hasLiveClient =
+                client != null &&
+                clientThread != null && clientThread.IsAlive &&
+                CurrentState == ConnectionState.Connected;
+
+            if (CurrentMode != NetworkMode.Client && !hasLiveClient)
+            {
+                Debug.LogWarning($"[NetworkManager] Ignored SendGameMessageToServer({messageType}) in mode {CurrentMode} (no live client connection).");
+                return;
+            }
 
             SendMessageToServer(messageType, data);
         }
 
         /// <summary>
-        /// Envoie une demande de dépense d'or au serveur (Client only)
+        /// RequestSpendGold - Envoie une demande de dépense d'or au serveur (Client only)
         /// </summary>
         public void RequestSpendGold(int playerId, int amount)
         {
             if (CurrentMode != NetworkMode.Client) return;
 
-            SendMessageToServer("GAME_REQUEST_SPEND_GOLD", amount.ToString());
+            string data = $"{playerId}|{amount}";
+            SendMessageToServer("SPEND_GOLD_REQUEST", data);
         }
 
         /// <summary>
-        /// Envoie une action de joueur au serveur (Client only)
+        /// SendPlayerAction - Envoie une action de joueur au serveur (Client only)
         /// </summary>
         public void SendPlayerAction(string actionType, string actionData)
         {
             if (CurrentMode != NetworkMode.Client) return;
 
             string payload = $"{actionType}|{actionData}";
-            SendMessageToServer("GAME_PLAYER_ACTION", payload);
+            SendMessageToServer("PLAYER_ACTION", payload);
         }
+
+        #endregion
 
         private void Awake()
         {
@@ -165,7 +240,11 @@ namespace BaboonTower.Network
             DontDestroyOnLoad(gameObject);
             EnsureApplicationFocusManager();
             playerName = PlayerPrefs.GetString("PlayerName", playerName);
+            
+            // Charger la configuration des vagues si elle existe
+            LoadWaveConfiguration();
         }
+        
         private void EnsureApplicationFocusManager()
         {
             if (FindObjectOfType<BaboonTower.Core.ApplicationFocusManager>() == null)
@@ -176,6 +255,24 @@ namespace BaboonTower.Network
                 Debug.Log("[NetworkManager] ApplicationFocusManager créé");
             }
         }
+        
+        private void LoadWaveConfiguration()
+        {
+            string configJson = PlayerPrefs.GetString("WaveConfiguration", "");
+            if (!string.IsNullOrEmpty(configJson))
+            {
+                try
+                {
+                    currentWaveConfig = JsonUtility.FromJson<WaveConfigurationMessage>(configJson);
+                    Debug.Log("[NetworkManager] Wave configuration loaded from PlayerPrefs");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[NetworkManager] Error loading wave configuration: {e.Message}");
+                }
+            }
+        }
+        
         private void OnDestroy()
         {
             StopNetworking();
@@ -186,8 +283,6 @@ namespace BaboonTower.Network
             Debug.Log("Application quitting - stopping networking");
             StopNetworking();
         }
-
-        #region Public API
 
         public void StartServer()
         {
@@ -237,9 +332,7 @@ namespace BaboonTower.Network
         }
 
         /// <summary>
-        /// Envoi de message chat.
-        /// - Host : broadcast direct + feedback local
-        /// - Client : send to server + écho local (le serveur NE renvoie PAS à l'émetteur)
+        /// SendChatMessage - Envoi de message chat
         /// </summary>
         public void SendChatMessage(string text)
         {
@@ -278,47 +371,57 @@ namespace BaboonTower.Network
             }
         }
 
-        public void HostTryStartGame()
-        {
-            // Ne fonctionne que pour l'hôte connecté
-            if (CurrentMode != NetworkMode.Host || CurrentState != ConnectionState.Connected) return;
+public void HostTryStartGame()
+{
+    // Ne fonctionne que pour l'hôte connecté
+    if (CurrentMode != NetworkMode.Host || CurrentState != ConnectionState.Connected) return;
 
-            // Vérifier qu'il y a au moins 1 joueur (pour debug) ou 2 (normal)
-            bool allowSinglePlayer = false; // Par défaut, on n'autorise pas le single player ici
+    // Vérifier qu'il y a au moins 1 joueur (pour debug) ou 2 (normal)
+    bool allowSinglePlayer = false;
 
-            // Chercher si un GameController existe et s'il autorise le debug single player
-            var gameController = FindObjectOfType<BaboonTower.Game.GameController>();
-            if (gameController != null)
-            {
-                allowSinglePlayer = gameController.IsDebugSinglePlayerAllowed;
-            }
+    // Chercher si un GameController existe et s'il autorise le debug single player
+    var gameController = FindObjectOfType<BaboonTower.Game.GameController>();
+    if (gameController != null)
+    {
+        allowSinglePlayer = gameController.IsDebugSinglePlayerAllowed;
+    }
 
-            int minPlayers = allowSinglePlayer ? 1 : 2;
-            if (ConnectedPlayers.Count < minPlayers)
-            {
-                OnServerMessage?.Invoke($"⚠ Il faut au moins {minPlayers} joueur(s) pour démarrer !");
-                return;
-            }
+    int minPlayers = allowSinglePlayer ? 1 : 2;
+    if (ConnectedPlayers.Count < minPlayers)
+    {
+        OnServerMessage?.Invoke($"⚠ Il faut au moins {minPlayers} joueur(s) pour démarrer !");
+        return;
+    }
 
-            // Considérer l'hôte comme prêt au moment de lancer
-            var host = ConnectedPlayers.FirstOrDefault(p => p.isHost);
-            if (host != null) host.isReady = true;
+    // Considérer l'hôte comme prêt au moment de lancer
+    var host = ConnectedPlayers.FirstOrDefault(p => p.isHost);
+    if (host != null) host.isReady = true;
 
-            // Si quelqu'un n'est pas prêt -> avertir tout le monde dans le chat (broadcast)
-            if (ConnectedPlayers.Count > 1 && ConnectedPlayers.Any(p => !p.isReady))
-            {
-                // Envoi aux clients + affichage local
-                BroadcastMessage("SERVER_MESSAGE", "⚠️ Tous les joueurs ne sont pas prêts !");
-                OnServerMessage?.Invoke("⚠️ Tous les joueurs ne sont pas prêts !");
-                return;
-            }
+    // Si quelqu'un n'est pas prêt -> avertir tout le monde dans le chat (broadcast)
+    if (ConnectedPlayers.Count > 1 && ConnectedPlayers.Any(p => !p.isReady))
+    {
+        BroadcastMessage("SERVER_MESSAGE", "⚠️ Tous les joueurs ne sont pas prêts !");
+        OnServerMessage?.Invoke("⚠️ Tous les joueurs ne sont pas prêts !");
+        return;
+    }
 
-            // Sinon: démarrer la partie (broadcast + callback local)
-            BroadcastMessage("GAME_START", "");
-            OnGameStarted?.Invoke();
-        }
+    // IMPORTANT : Log pour debug
+    Debug.Log("[NetworkManager] Starting game - Broadcasting GAME_START to all clients");
+    
+    // Sinon: démarrer la partie (broadcast + callback local)
+    BroadcastMessage("GAME_START", "START_NOW");  // Ajout d'un payload pour s'assurer que le message n'est pas vide
+    
+    // IMPORTANT : Petit délai avant de déclencher localement pour s'assurer que le message est envoyé
+    StartCoroutine(DelayedGameStart());
+}
 
-        #endregion
+private System.Collections.IEnumerator DelayedGameStart()
+{
+    yield return new WaitForSeconds(0.1f);
+    Debug.Log("[NetworkManager] Invoking OnGameStarted for host");
+    OnGameStarted?.Invoke();
+}
+
 
         #region Server Methods (Host)
 
@@ -343,8 +446,8 @@ namespace BaboonTower.Network
 
                 serverThread = new Thread(ServerLoop)
                 {
-                    IsBackground = false,  // Thread principal
-                    Priority = System.Threading.ThreadPriority.AboveNormal  // Priorité élevée
+                    IsBackground = false,
+                    Priority = System.Threading.ThreadPriority.AboveNormal
                 };
                 serverThread.Start();
 
@@ -459,14 +562,28 @@ namespace BaboonTower.Network
             {
                 case "JOIN_LOBBY":
                     client.playerData.playerName = message.data;
-
                     {
                         var playerData = new PlayerData(message.data, client.playerData.playerId);
                         ConnectedPlayers.Add(playerData);
                         BroadcastPlayersUpdate();
+                        
+                        // Envoyer la configuration des vagues au nouveau client
+                        if (currentWaveConfig != null)
+                        {
+                            string configJson = JsonUtility.ToJson(currentWaveConfig);
+                            SendMessageToClient(client, "WAVE_CONFIG_UPDATE", configJson);
+                        }
                     }
                     break;
-
+				case "REQUEST_GAME_STATE":
+					{
+        // Un client demande l'état du jeu
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "GameScene")
+        {
+            SendMessageToClient(client, "FORCE_GAME_START", "");
+        }
+        break;
+    }
                 case "PLAYER_READY":
                     {
                         var player = ConnectedPlayers.FirstOrDefault(p => p.playerId == client.playerData.playerId);
@@ -486,26 +603,40 @@ namespace BaboonTower.Network
                             : client.playerData.playerName;
 
                         string payload = $"{author}|{clean}";
-                        BroadcastMessageExcept(client, "CHAT", payload); // pas de renvoi à l'émetteur
-                        OnChatMessage?.Invoke(author, clean); // feedback host
+                        BroadcastMessageExcept(client, "CHAT", payload);
+                        OnChatMessage?.Invoke(author, clean);
                         break;
                     }
 
-                case "GAME_REQUEST_SPEND_GOLD":
+                case "SPEND_GOLD_REQUEST":
                     {
                         // Transférer la demande au GameController
-                        OnGameMessage?.Invoke("SPEND_GOLD_REQUEST", $"{client.playerData.playerId}|{message.data}");
+                        OnGameMessage?.Invoke("SPEND_GOLD_REQUEST", message.data);
                         break;
                     }
 
-                case "GAME_PLAYER_ACTION":
+                case "PLAYER_ACTION":
                     {
                         // Actions du joueur (placement de tours, etc.)
                         string payload = $"{client.playerData.playerId}|{message.data}";
                         OnGameMessage?.Invoke("PLAYER_ACTION", payload);
                         break;
                     }
-
+                    
+				case "WAVE_COMPLETED":  // AJOUT IMPORTANT !
+					{
+						// Un client a terminé sa vague
+						Debug.Log($"[NetworkManager Host] Client {client.playerData.playerName} sent WAVE_COMPLETED: {message.data}");
+						
+						// Transférer au GameController/WaveManager
+						OnGameMessage?.Invoke("WAVE_COMPLETED", message.data);
+						break;
+					}
+				case "GOLD_REQUEST":
+				case "DAMAGE_REQUEST":
+					// Transférer ces demandes au GameController
+				OnGameMessage?.Invoke(message.messageType, message.data);
+				break;
                 case "DISCONNECT":
                     RemoveClient(client);
                     break;
@@ -529,38 +660,24 @@ namespace BaboonTower.Network
                 Debug.Log($"Client déconnecté. Total: {connectedClients.Count}");
             });
         }
-
-        private void BroadcastMessage(string messageType, string data)
+        
+        private void SendMessageToClient(ConnectedClient client, string messageType, string data)
         {
             NetworkMessage message = new NetworkMessage(messageType, data);
             string json = JsonUtility.ToJson(message);
             byte[] bytes = Encoding.UTF8.GetBytes(json);
-
-            var clientsToRemove = new List<ConnectedClient>();
-
-            foreach (var client in connectedClients)
+            
+            try
             {
-                try
+                if (client.tcpClient.Connected)
                 {
-                    if (client.tcpClient.Connected)
-                    {
-                        client.stream.Write(bytes, 0, bytes.Length);
-                        client.stream.Flush();
-                    }
-                    else
-                    {
-                        clientsToRemove.Add(client);
-                    }
-                }
-                catch
-                {
-                    clientsToRemove.Add(client);
+                    client.stream.Write(bytes, 0, bytes.Length);
+                    client.stream.Flush();
                 }
             }
-
-            foreach (var client in clientsToRemove)
+            catch (Exception e)
             {
-                RemoveClient(client);
+                Debug.LogError($"Error sending message to client: {e.Message}");
             }
         }
 
@@ -669,28 +786,39 @@ namespace BaboonTower.Network
             }
         }
 
-        private void ClientLoop()
+private void ClientLoop()
+{
+    byte[] buffer = new byte[4096];
+    float lastStateCheck = 0;
+
+    while (isRunning && client != null && client.Connected)
+    {
+        try
         {
-            byte[] buffer = new byte[4096];
-
-            while (isRunning && client != null && client.Connected)
+            // Vérification périodique de l'état (toutes les 5 secondes)
+            if (Time.time - lastStateCheck > 5f)
             {
-                try
+                lastStateCheck = Time.time;
+                if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Lobby")
                 {
-                    if (clientStream.DataAvailable)
-                    {
-                        int bytesRead = clientStream.Read(buffer, 0, buffer.Length);
-                        if (bytesRead > 0)
-                        {
-                            string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                            ProcessServerMessage(message);
-                        }
-                    }
-
-                    Thread.Sleep(16);
+                    SendMessageToServer("REQUEST_GAME_STATE", "");
                 }
-                catch (Exception e)
+            }
+
+            if (clientStream.DataAvailable)
+            {
+                int bytesRead = clientStream.Read(buffer, 0, buffer.Length);
+                if (bytesRead > 0)
                 {
+                    string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    ProcessServerMessage(message);
+                }
+            }
+
+            Thread.Sleep(16);
+        }
+        catch (Exception e)
+        {
                     if (isRunning)
                     {
                         Debug.LogError($"Erreur client: {e.Message}");
@@ -721,48 +849,91 @@ namespace BaboonTower.Network
             }
         }
 
-        private void HandleServerMessage(NetworkMessage message)
-        {
-            switch (message.messageType)
+private void HandleServerMessage(NetworkMessage message)
+{
+    Debug.Log($"[NetworkManager Client] Received message type: {message.messageType}, data: {message.data}");
+    
+    switch (message.messageType)
+    {
+        case "PLAYERS_UPDATE":
+            UpdatePlayersList(message.data);
+            break;
+
+        case "GAME_START":
+            Debug.Log("[NetworkManager Client] GAME_START received! Invoking OnGameStarted event");
+            OnGameStarted?.Invoke();
+            break;
+            
+        case "FORCE_GAME_START":
+            Debug.Log("[NetworkManager Client] Received FORCE_GAME_START - Loading game scene");
+            OnGameStarted?.Invoke();
+            break;
+            
+        case "SERVER_MESSAGE":
+            OnServerMessage?.Invoke(message.data);
+            break;
+
+        case "CHAT":
             {
-                case "PLAYERS_UPDATE":
-                    UpdatePlayersList(message.data);
-                    break;
-
-                case "GAME_START":
-                    OnGameStarted?.Invoke();
-                    break;
-
-                case "SERVER_MESSAGE":
-                    OnServerMessage?.Invoke(message.data);
-                    break;
-
-                case "CHAT":
-                    {
-                        var parts = (message.data ?? "").Split(new char[] { '|' }, 2);
-                        string author = parts.Length > 0 ? parts[0] : "???";
-                        string text = parts.Length > 1 ? parts[1] : "";
-                        OnChatMessage?.Invoke(author, text);
-                        break;
-                    }
-
-                case "GAME_STATE_UPDATE":
-                case "WAVE_STARTED":
-                case "GAME_TIMER":
-                case "PLAYERS_STATES":
-                case "PLAYER_ELIMINATED":
-                case "GAME_WINNER":
-                    {
-                        // Transférer au GameController
-                        OnGameMessage?.Invoke(message.messageType, message.data);
-                        break;
-                    }
-
-                case "DISCONNECT":
-                    SetConnectionState(ConnectionState.Disconnected);
-                    break;
+                var parts = (message.data ?? "").Split(new char[] { '|' }, 2);
+                string author = parts.Length > 0 ? parts[0] : "???";
+                string text = parts.Length > 1 ? parts[1] : "";
+                OnChatMessage?.Invoke(author, text);
+                break;
             }
-        }
+                    
+        case "WAVE_CONFIG_UPDATE":
+            {
+                // Sauvegarder la configuration des vagues
+                PlayerPrefs.SetString("WaveConfiguration", message.data);
+                PlayerPrefs.Save();
+                
+                try
+                {
+                    currentWaveConfig = JsonUtility.FromJson<WaveConfigurationMessage>(message.data);
+                    Debug.Log("[NetworkManager] Wave configuration received and saved");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"[NetworkManager] Error parsing wave configuration: {e.Message}");
+                }
+                
+                // Transférer au LobbyController ou GameController
+                OnGameMessage?.Invoke(message.messageType, message.data);
+                break;
+            }
+        case "WAVE_START_SYNC":
+            Debug.Log("[NetworkManager Client] Received WAVE_START_SYNC - Forwarding to GameController");
+            OnGameMessage?.Invoke(message.messageType, message.data);
+            break;
+        // IMPORTANT : Ajouter ces messages pour les ennemis
+        case "ENEMY_SPAWN":
+        case "ENEMIES_SYNC":
+        case "ENEMY_DEATH":
+        case "FIRST_FINISHER":
+        case "NEXT_WAVE_TIMER":
+        case "GAME_STATE_UPDATE":
+        case "WAVE_STARTED":
+        case "GAME_TIMER":
+        case "PLAYERS_STATES":
+        case "PLAYER_ELIMINATED":
+        case "GAME_WINNER":
+            {
+                // Transférer TOUS ces messages au GameController ou WaveManager
+                OnGameMessage?.Invoke(message.messageType, message.data);
+                break;
+            }
+case "WAVE_COMPLETED":
+    {
+        // Transférer directement au WaveManager via GameController
+        OnGameMessage?.Invoke(message.messageType, message.data);
+        break;
+    }
+        case "DISCONNECT":
+            SetConnectionState(ConnectionState.Disconnected);
+            break;
+    }
+}
 
         private void UpdatePlayersList(string playersData)
         {

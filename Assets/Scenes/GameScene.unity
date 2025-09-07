@@ -281,7 +281,7 @@ MonoBehaviour:
   enemiesAliveText: {fileID: 625054202}
   waveNumberText: {fileID: 1494864421}
   waveTimerText: {fileID: 2043797201}
-  gameStateText: {fileID: 1692126048}
+  gameStateText: {fileID: 0}
   defenseTab: {fileID: 363462256}
   attackTab: {fileID: 1269245529}
   defenseTabButton: {fileID: 1121253137}
@@ -291,7 +291,7 @@ MonoBehaviour:
   mercenaryShopContent: {fileID: 1961798169}
   mercenaryShopItemPrefab: {fileID: 0}
   targetSelectionModal: {fileID: 471195092}
-  targetListContent: {fileID: 1478768651}
+  targetListContent: {fileID: 1515752298}
   targetItemPrefab: {fileID: 0}
   cancelTargetButton: {fileID: 1035920437}
   activeTabColor: {r: 0.6, g: 0.4, b: 0.2, a: 1}
@@ -1099,10 +1099,17 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1226622205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+<<<<<<< Updated upstream
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
   m_AnchoredPosition: {x: 0, y: -61.3}
   m_SizeDelta: {x: 0, y: 30}
+=======
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -436, y: 23}
+  m_SizeDelta: {x: 200, y: 30}
+>>>>>>> Stashed changes
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &625054202
 MonoBehaviour:
@@ -1213,8 +1220,11 @@ GameObject:
   m_Component:
   - component: {fileID: 680922841}
   - component: {fileID: 680922842}
+<<<<<<< Updated upstream
   - component: {fileID: 680922843}
   - component: {fileID: 680922844}
+=======
+>>>>>>> Stashed changes
   m_Layer: 0
   m_Name: Debug
   m_TagString: Untagged
@@ -1250,10 +1260,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   autoStartOnSceneLoad: 1
-  simulateHost: 1
+  simulateHost: 0
   startDelay: 1
   showDebugInfo: 1
   manualStartKey: 282
+<<<<<<< Updated upstream
 --- !u!114 &680922843
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1289,6 +1300,8 @@ MonoBehaviour:
   debugPlayerName: DebugPlayer2
   showOverlay: 1
   verbose: 1
+=======
+>>>>>>> Stashed changes
 --- !u!1 &693414839
 GameObject:
   m_ObjectHideFlags: 0
@@ -1357,10 +1370,17 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1226622205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+<<<<<<< Updated upstream
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 30}
+=======
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -0.000045776, y: 27}
+  m_SizeDelta: {x: 200, y: 30}
+>>>>>>> Stashed changes
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &843086477
 MonoBehaviour:
@@ -2054,7 +2074,6 @@ RectTransform:
   - {fileID: 1878043588}
   - {fileID: 1494864420}
   - {fileID: 625054201}
-  - {fileID: 1692126047}
   m_Father: {fileID: 30554341}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -2361,6 +2380,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2136ea4c84a5aba409b01a6cabacaac7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+<<<<<<< Updated upstream
   spawnDelay: 1
   baseEnemiesPerWave: 5
   difficultyMultiplier: 1.5
@@ -2368,6 +2388,26 @@ MonoBehaviour:
   enemiesSpawned: 0
   enemiesAlive: 0
   waveInProgress: 1
+=======
+  waveConfig:
+    version: 
+    initialPreparationTime: 0
+    preparationTimeBetweenWaves: 0
+    delayAfterFirstFinish: 0
+    defaultGroupInterval: 0
+    waves: []
+  enemyPrefab: {fileID: 0}
+  enemiesContainer: {fileID: 0}
+  currentWave: 0
+  activeEnemies: []
+  waveInProgress: 0
+  waveCompletionTime: 0
+  firstFinisherPlayerId: -1
+  firstFinisherName: 
+  hasSpawnedAllEnemies: 0
+  debugMode: 0
+  autoSpawnEnemies: 1
+>>>>>>> Stashed changes
 --- !u!4 &1416385181
 Transform:
   m_ObjectHideFlags: 0
@@ -2475,13 +2515,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2136ea4c84a5aba409b01a6cabacaac7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  spawnDelay: 1
-  baseEnemiesPerWave: 5
-  difficultyMultiplier: 1.5
-  currentWaveNumber: 0
-  enemiesSpawned: 5
-  enemiesAlive: 5
+  waveConfig:
+    version: 
+    initialPreparationTime: 0
+    preparationTimeBetweenWaves: 0
+    delayAfterFirstFinish: 0
+    defaultGroupInterval: 0
+    waves: []
+  enemyPrefab: {fileID: 0}
+  enemiesContainer: {fileID: 0}
+  currentWave: 0
+  activeEnemies: []
   waveInProgress: 1
+  waveCompletionTime: 0
+  firstFinisherPlayerId: -1
+  firstFinisherName: 
+  hasSpawnedAllEnemies: 0
+  debugMode: 0
+  autoSpawnEnemies: 1
 --- !u!1 &1478768650
 GameObject:
   m_ObjectHideFlags: 0
@@ -2621,10 +2672,17 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1226622205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+<<<<<<< Updated upstream
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
   m_AnchoredPosition: {x: 0, y: -30.1}
   m_SizeDelta: {x: 0, y: 30}
+=======
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -205, y: -42}
+  m_SizeDelta: {x: 200, y: 30}
+>>>>>>> Stashed changes
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1494864421
 MonoBehaviour:
@@ -2978,6 +3036,7 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+<<<<<<< Updated upstream
 --- !u!1 &1692126046
 GameObject:
   m_ObjectHideFlags: 0
@@ -3114,6 +3173,8 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1692126046}
   m_CullTransparentMesh: 1
+=======
+>>>>>>> Stashed changes
 --- !u!1 &1703435527
 GameObject:
   m_ObjectHideFlags: 0
@@ -3358,13 +3419,19 @@ MonoBehaviour:
   startingCastleHP: 100
   preparationTime: 10
   waveStartDelay: 5
+<<<<<<< Updated upstream
   timeBetweenWaves: 15
+=======
+  initialPreparationTime: 10
+>>>>>>> Stashed changes
   waveText: {fileID: 2043797201}
   goldText: {fileID: 843086477}
   castleHPText: {fileID: 1878043589}
   gameStateText: {fileID: 1916083496}
   timerText: {fileID: 1125168111}
   backToLobbyButton: {fileID: 2133910755}
+  notificationPanel: {fileID: 0}
+  notificationText: {fileID: 0}
   playersUIParent: {fileID: 1575427011}
   playerUIItemPrefab: {fileID: 441505749152212044, guid: 58126dbeb31747e41922374e49f5c2cd, type: 3}
   gameGrid: {fileID: 0}
@@ -3636,8 +3703,13 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
+<<<<<<< Updated upstream
   m_AnchoredPosition: {x: 0, y: 30.7}
   m_SizeDelta: {x: 0, y: 30}
+=======
+  m_AnchoredPosition: {x: -99.99998, y: -12}
+  m_SizeDelta: {x: 200, y: 30}
+>>>>>>> Stashed changes
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1878043589
 MonoBehaviour:
@@ -3858,8 +3930,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 36
-  m_fontSizeBase: 36
+  m_fontSize: 24
+  m_fontSizeBase: 24
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18

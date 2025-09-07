@@ -1,0 +1,206 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-01",
+  "initialPreparationTime": 10.0,
+  "preparationTimeBetweenWaves": 5.0,
+  "delayAfterFirstFinish": 15.0,
+  "defaultGroupInterval": 2.0,
+  "difficultyScaling": {
+    "enemyCountMultiplier": 1.2,
+    "enemyHealthMultiplier": 1.1,
+    "enemySpeedMultiplier": 1.05,
+    "goldRewardMultiplier": 1.15
+  },
+  "waves": [
+    {
+      "waveNumber": 1,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 5,
+          "spawnInterval": 0.5
+        }
+      ],
+      "groupInterval": 2.0
+    },
+    {
+      "waveNumber": 2,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 8,
+          "spawnInterval": 0.4
+        },
+        {
+          "enemyType": "Medium",
+          "count": 2,
+          "spawnInterval": 0.7
+        }
+      ],
+      "groupInterval": 2.5
+    },
+    {
+      "waveNumber": 3,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 10,
+          "spawnInterval": 0.3
+        },
+        {
+          "enemyType": "Medium",
+          "count": 5,
+          "spawnInterval": 0.6
+        }
+      ],
+      "groupInterval": 2.0
+    },
+    {
+      "waveNumber": 4,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 12,
+          "spawnInterval": 0.3
+        },
+        {
+          "enemyType": "Medium",
+          "count": 7,
+          "spawnInterval": 0.5
+        },
+        {
+          "enemyType": "High",
+          "count": 1,
+          "spawnInterval": 1.0
+        }
+      ],
+      "groupInterval": 2.5
+    },
+    {
+      "waveNumber": 5,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 15,
+          "spawnInterval": 0.25
+        },
+        {
+          "enemyType": "Medium",
+          "count": 10,
+          "spawnInterval": 0.4
+        },
+        {
+          "enemyType": "High",
+          "count": 3,
+          "spawnInterval": 0.8
+        }
+      ],
+      "groupInterval": 3.0
+    },
+    {
+      "waveNumber": 6,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 20,
+          "spawnInterval": 0.2
+        },
+        {
+          "enemyType": "Medium",
+          "count": 12,
+          "spawnInterval": 0.4
+        },
+        {
+          "enemyType": "High",
+          "count": 5,
+          "spawnInterval": 0.7
+        }
+      ],
+      "groupInterval": 3.0
+    },
+    {
+      "waveNumber": 7,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 25,
+          "spawnInterval": 0.15
+        },
+        {
+          "enemyType": "Medium",
+          "count": 15,
+          "spawnInterval": 0.3
+        },
+        {
+          "enemyType": "High",
+          "count": 7,
+          "spawnInterval": 0.6
+        }
+      ],
+      "groupInterval": 3.5
+    },
+    {
+      "waveNumber": 8,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 30,
+          "spawnInterval": 0.15
+        },
+        {
+          "enemyType": "Medium",
+          "count": 18,
+          "spawnInterval": 0.25
+        },
+        {
+          "enemyType": "High",
+          "count": 10,
+          "spawnInterval": 0.5
+        }
+      ],
+      "groupInterval": 4.0
+    },
+    {
+      "waveNumber": 9,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 35,
+          "spawnInterval": 0.1
+        },
+        {
+          "enemyType": "Medium",
+          "count": 22,
+          "spawnInterval": 0.2
+        },
+        {
+          "enemyType": "High",
+          "count": 13,
+          "spawnInterval": 0.4
+        }
+      ],
+      "groupInterval": 4.5
+    },
+    {
+      "waveNumber": 10,
+      "enemyGroups": [
+        {
+          "enemyType": "Small",
+          "count": 40,
+          "spawnInterval": 0.1
+        },
+        {
+          "enemyType": "Medium",
+          "count": 25,
+          "spawnInterval": 0.2
+        },
+        {
+          "enemyType": "High",
+          "count": 15,
+          "spawnInterval": 0.35
+        }
+      ],
+      "groupInterval": 5.0
+    }
+  ]
+}
