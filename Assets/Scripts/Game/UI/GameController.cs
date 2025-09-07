@@ -117,6 +117,7 @@ namespace BaboonTower.Game
         [SerializeField] private float preparationTime = 10f;
         [SerializeField] private float waveStartDelay = 5f;
         [SerializeField] private float initialPreparationTime = 10f; // Compte à rebours initial
+<<<<<<< Updated upstream
 
         [Header("Wave Synchronization")]
         [SerializeField] private float timeBetweenWaves = 15f; // Temps après qu'un joueur finit avant la prochaine vague
@@ -124,6 +125,8 @@ namespace BaboonTower.Game
         private string firstPlayerToFinish = "";
         private bool waveCompletedLocally = false;
         private float lastTimerSync = 0f;
+=======
+>>>>>>> Stashed changes
 
         [Header("UI References")]
         [SerializeField] private TextMeshProUGUI waveText;
@@ -195,6 +198,7 @@ namespace BaboonTower.Game
             }
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             // Gestion du countdown entre vagues
             if (isHost && nextWaveCountdown > 0)
             {
@@ -218,6 +222,9 @@ namespace BaboonTower.Game
             }
 
             // Raccourcis clavier de debug (seulement en mode debug et pour l'host)
+=======
+            // Raccourcis clavier de debug (seulement en mode debug)
+>>>>>>> Stashed changes
 =======
             // Raccourcis clavier de debug (seulement en mode debug)
 >>>>>>> Stashed changes
@@ -465,6 +472,7 @@ namespace BaboonTower.Game
         #endregion
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         #region Wave Management
 
         // Méthode pour signaler qu'un joueur a fini sa vague
@@ -552,6 +560,8 @@ namespace BaboonTower.Game
         }
 
 =======
+=======
+>>>>>>> Stashed changes
         #region Wave Manager Events
         
         private void OnPlayerFinishedFirst(int playerId, string message)
@@ -586,6 +596,9 @@ namespace BaboonTower.Game
             Debug.Log($"[GameController] Wave {waveNumber} completed");
         }
         
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
         #endregion
 
@@ -723,6 +736,7 @@ namespace BaboonTower.Game
             }
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             // Informer tous les clients que le jeu commence
             BroadcastGameState(GameState.WaitingForPlayers);
             SetGameState(GameState.WaitingForPlayers);
@@ -842,6 +856,44 @@ float countdownTimer = initialPreparationTime;
 =======
             timerText.text = $"Première vague dans: {Mathf.Ceil(prepTimer)}s";
 >>>>>>> Stashed changes
+=======
+    // Phase d'attente avec compte à rebours initial
+    BroadcastGameState(GameState.WaitingForPlayers);
+    SetGameState(GameState.WaitingForPlayers);
+    
+    // IMPORTANT : S'assurer que tous les clients sont synchronisés
+    yield return new WaitForSeconds(1f);
+            
+float countdownTimer = initialPreparationTime;
+    while (countdownTimer > 0)
+    {
+        BroadcastGameTimer(countdownTimer, "initial");
+        
+        if (timerText != null)
+        {
+            timerText.text = $"Début dans: {Mathf.Ceil(countdownTimer)}s";
+        }
+        
+        yield return new WaitForSeconds(1f);
+        countdownTimer -= 1f;
+    }
+
+// Phase de préparation initiale
+    BroadcastGameState(GameState.PreparationPhase);
+    SetGameState(GameState.PreparationPhase);
+    
+    ShowNotification("Phase d'achat - Placez vos tours !", 3f);
+    
+    // Timer avant la première vague
+    float prepTimer = waveStartDelay;
+    while (prepTimer > 0)
+    {
+        BroadcastGameTimer(prepTimer, "preparation");
+        
+        if (timerText != null)
+        {
+            timerText.text = $"Première vague dans: {Mathf.Ceil(prepTimer)}s";
+>>>>>>> Stashed changes
         }
         
         yield return new WaitForSeconds(1f);
@@ -934,7 +986,11 @@ private IEnumerator DelayedFirstWave()
             }
         }
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
+=======
+        
+>>>>>>> Stashed changes
 =======
         
 >>>>>>> Stashed changes
@@ -949,7 +1005,11 @@ private IEnumerator DelayedFirstWave()
             }
         }
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
+=======
+        
+>>>>>>> Stashed changes
 =======
         
 >>>>>>> Stashed changes
@@ -1084,11 +1144,14 @@ private IEnumerator DelayedFirstWave()
             networkManager.BroadcastGameMessage("GAME_WINNER", json);
         }
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
         private void OnGameMessageReceived(string messageType, string data)
         {
             if (!isHost)
 =======
+=======
+>>>>>>> Stashed changes
 private void Awake()
 {
     // Créer le DebugLogger s'il n'existe pas
@@ -1114,6 +1177,9 @@ private void OnGameMessageReceived(string messageType, string data)
         case "NEXT_WAVE_TIMER":
         case "WAVE_COMPLETED":  // AJOUT IMPORTANT
             if (waveManager != null)
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
             {
                 Debug.Log($"[GameController] Forwarding {messageType} to WaveManager");
@@ -1146,6 +1212,9 @@ private void ProcessServerGameMessage(string messageType, string data)
     try
     {
         switch (messageType)
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
         {
             case "GAME_STATE_UPDATE":
@@ -1155,6 +1224,7 @@ private void ProcessServerGameMessage(string messageType, string data)
             case "WAVE_STARTED":
                 if (int.TryParse(data, out int wave))
                 {
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
                     case "GAME_STATE_UPDATE":
                         HandleGameStateMessage(data);
@@ -1289,6 +1359,60 @@ private void ProcessClientGameMessage(string messageType, string data)
                 var parts = data.Split('|');
                 if (parts.Length == 2 && int.TryParse(parts[0], out int playerId) && int.TryParse(parts[1], out int amount))
                 {
+=======
+                    gameState.currentWave = wave;
+                    OnWaveStarted?.Invoke(wave);
+                    UpdateUI();
+                }
+                break;
+
+            case "GAME_TIMER":
+                HandleGameTimerMessage(data);
+                break;
+
+            case "PLAYERS_STATES":
+                HandlePlayerStatesMessage(data);
+                break;
+
+            case "PLAYER_ELIMINATED":
+                HandlePlayerEliminatedMessage(data);
+                break;
+
+            case "GAME_WINNER":
+                HandleGameWinnerMessage(data);
+                break;
+                
+            // Transférer seulement les messages de synchronisation de vagues
+            case "WAVE_START_SYNC":
+            case "FIRST_FINISHER":
+            case "NEXT_WAVE_TIMER":
+                if (waveManager != null)
+                {
+                    waveManager.ProcessNetworkMessage(messageType, data);
+                }
+                break;
+        }
+    }
+    catch (System.Exception e)
+    {
+        Debug.LogError($"Error processing server game message {messageType}: {e.Message}");
+    }
+}
+
+        /// <summary>
+        /// Traite les demandes de jeu reçues des clients (host uniquement)
+        /// </summary>
+private void ProcessClientGameMessage(string messageType, string data)
+{
+    try
+    {
+        switch (messageType)
+        {
+            case "SPEND_GOLD_REQUEST":
+                var parts = data.Split('|');
+                if (parts.Length == 2 && int.TryParse(parts[0], out int playerId) && int.TryParse(parts[1], out int amount))
+                {
+>>>>>>> Stashed changes
                     var player = gameState.playersStates.Find(p => p.playerId == playerId);
                     if (player != null && player.gold >= amount)
                     {
@@ -1296,6 +1420,9 @@ private void ProcessClientGameMessage(string messageType, string data)
                         BroadcastPlayerStates();
                         UpdateUI();
                     }
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                 }
                 break;

@@ -203,6 +203,7 @@ public void StartWave(int waveNumber)
         /// SpawnWaveCoroutine - Coroutine de spawn des ennemis pour une vague
         /// </summary>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 public void StartWave(int waveNumber)
 {
     // IMPORTANT: Tous les joueurs (host ET clients) doivent spawn leurs propres ennemis
@@ -224,6 +225,8 @@ public void StartWave(int waveNumber)
     StartCoroutine(SpawnWave(waveNumber));
 }
 =======
+=======
+>>>>>>> Stashed changes
         private IEnumerator SpawnWaveCoroutine(int waveNumber)
         {
             WaveData waveData = GetWaveData(waveNumber);
@@ -255,6 +258,9 @@ public void StartWave(int waveNumber)
         }
         
         #region Network Message Handling
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 
@@ -818,6 +824,7 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
             activeEnemies.Clear();
         }
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
         /// <summary>
         /// Coroutine pour spawner les ennemis de la vague
@@ -988,6 +995,26 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
                 GUI.Label(new Rect(20, 280, 180, 20), $"MapLoader: {(mapLoader != null ? "OK" : "MISSING")}");
 
                 if (GUI.Button(new Rect(20, 290, 80, 15), "Wave 1") && NetworkManager.Instance?.CurrentMode == NetworkMode.Host)
+=======
+        
+        public int GetCurrentWave() => currentWave;
+        
+        public int GetActiveEnemiesCount() => activeEnemies.Count;
+        
+        #endregion
+        
+        #region Debug Methods
+        
+        [ContextMenu("Force Complete Wave")]
+        private void DebugForceCompleteWave()
+        {
+            Debug.Log("[WaveManager] Force completing wave");
+            
+            // Détruire tous les ennemis
+            foreach (var enemy in activeEnemies)
+            {
+                if (enemy != null)
+>>>>>>> Stashed changes
 =======
         
         public int GetCurrentWave() => currentWave;
