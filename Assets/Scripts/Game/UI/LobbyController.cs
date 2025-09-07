@@ -771,16 +771,18 @@ private void OnGameStarted()
 {
     Debug.Log("[LobbyController] OnGameStarted event received!");
     
-    // Sauvegarder la configuration une dernière fois
-    if (currentWaveConfig != null)
+    // NE PAS charger la scène immédiatement si déjà dans GameScene
+    if (SceneManager.GetActiveScene().name != "GameScene")
     {
-        SaveWaveConfiguration(currentWaveConfig);
+        // Sauvegarder la configuration
+        if (currentWaveConfig != null)
+        {
+            SaveWaveConfiguration(currentWaveConfig);
+        }
+        
+        Debug.Log("[LobbyController] Loading GameScene...");
+        SceneManager.LoadScene("GameScene");
     }
-    
-    Debug.Log("[LobbyController] Loading GameScene...");
-    
-    // Charger la scène de jeu avec un petit délai pour s'assurer que tout est synchronisé
-    StartCoroutine(LoadGameSceneWithDelay());
 }
 
 private System.Collections.IEnumerator LoadGameSceneWithDelay()

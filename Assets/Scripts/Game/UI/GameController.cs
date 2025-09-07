@@ -85,30 +85,6 @@ namespace BaboonTower.Game
         public string phase; // "preparation" ou "wave"
     }
 
-    [System.Serializable]
-    public class WaveCompletedMessage
-    {
-        public string playerName;
-        public float timeUntilNextWave;
-        public int currentWave;
-    }
-
-    [System.Serializable]
-    public class WaveCountdownMessage
-    {
-        public float timeRemaining;
-        public string firstPlayer;
-    }
-
-    [System.Serializable]
-    public class MapConfigjson
-    {
-        public float preparationTime = 10f;
-        public float timeBetweenWaves = 15f;
-        public int startingGold = 10;
-        public int startingCastleHP = 100;
-    }
-
     public class GameController : MonoBehaviour
     {
         [Header("Game Settings")]
@@ -117,16 +93,6 @@ namespace BaboonTower.Game
         [SerializeField] private float preparationTime = 10f;
         [SerializeField] private float waveStartDelay = 5f;
         [SerializeField] private float initialPreparationTime = 10f; // Compte à rebours initial
-<<<<<<< Updated upstream
-
-        [Header("Wave Synchronization")]
-        [SerializeField] private float timeBetweenWaves = 15f; // Temps après qu'un joueur finit avant la prochaine vague
-        private float nextWaveCountdown = -1f; // -1 = pas de countdown actif
-        private string firstPlayerToFinish = "";
-        private bool waveCompletedLocally = false;
-        private float lastTimerSync = 0f;
-=======
->>>>>>> Stashed changes
 
         [Header("UI References")]
         [SerializeField] private TextMeshProUGUI waveText;
@@ -186,8 +152,70 @@ namespace BaboonTower.Game
             SetupNetworkEvents();
             SetupUI();
             SetupWaveManagerEvents();
+			
+    // AJOUTER : Notifier le NetworkManager qu'on est dans GameScene
+    if (networkManager != null)
+    {
+        networkManager.NotifyGameSceneLoaded();
+    }
+    
+    // AJOUTER : Vérifier si le jeu doit démarrer
+    CheckAndStartGame();
         }
 
+/// <summary>
+/// CheckAndStartGame - Vérifie et démarre le jeu si nécessaire
+/// </summary>
+private void CheckAndStartGame()
+{
+    if (networkManager == null)
+    {
+        Debug.LogError("[GameController] NetworkManager not found!");
+        return;
+    }
+    
+    // Si le flag GameHasStarted est true, on démarre
+    if (networkManager.GameHasStarted)
+    {
+        Debug.Log($"[GameController] Game already started flag detected - Mode: {networkManager.CurrentMode}");
+        
+        // Pour l'hôte ET les clients
+        OnNetworkGameStarted();
+    }
+    else
+    {
+        Debug.LogWarning("[GameController] Waiting for game start signal...");
+        
+        // OPTIONNEL : Ajouter un timeout de sécurité
+        StartCoroutine(GameStartTimeout());
+    }
+}
+
+/// <summary>
+/// GameStartTimeout - Timeout de sécurité si pas de signal reçu
+/// </summary>
+private IEnumerator GameStartTimeout()
+{
+    float timeout = 5f;
+    float elapsed = 0f;
+    
+    while (!networkManager.GameHasStarted && elapsed < timeout)
+    {
+        yield return new WaitForSeconds(0.5f);
+        elapsed += 0.5f;
+    }
+    
+    if (!networkManager.GameHasStarted)
+    {
+        Debug.LogError("[GameController] Game start timeout! Returning to lobby...");
+        SceneManager.LoadScene("MainMenu");
+    }
+    else
+    {
+        Debug.Log("[GameController] Game start signal received during wait");
+        OnNetworkGameStarted();
+    }
+}
         private void Update()
         {
             // Synchronisation périodique pour l'host
@@ -197,59 +225,34 @@ namespace BaboonTower.Game
                 lastSyncTime = Time.time;
             }
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            // Gestion du countdown entre vagues
-            if (isHost && nextWaveCountdown > 0)
-            {
-                nextWaveCountdown -= Time.deltaTime;
-                
-                // Synchroniser le timer toutes les 0.5 secondes
-                if (Time.time - lastTimerSync > TIMER_SYNC_INTERVAL)
-                {
-                    BroadcastWaveCountdown(nextWaveCountdown);
-                    lastTimerSync = Time.time;
-                }
-                
-                // Démarrer la prochaine vague quand le timer arrive à 0
-                if (nextWaveCountdown <= 0)
-                {
-                    nextWaveCountdown = -1;
-                    firstPlayerToFinish = "";
-                    waveCompletedLocally = false;
-                    StartCoroutine(WavePhase());
-                }
-            }
-
-            // Raccourcis clavier de debug (seulement en mode debug et pour l'host)
-=======
             // Raccourcis clavier de debug (seulement en mode debug)
->>>>>>> Stashed changes
-=======
-            // Raccourcis clavier de debug (seulement en mode debug)
->>>>>>> Stashed changes
             if (allowSinglePlayerDebug)
             {
+                // F1 : Force start game
                 if (Input.GetKeyDown(forceStartGameKey))
                 {
                     ForceStartGame();
                 }
 
+                // F2 : Add gold
                 if (Input.GetKeyDown(KeyCode.F2))
                 {
                     DebugAddGold();
                 }
 
+                // F3 : Damage castle
                 if (Input.GetKeyDown(KeyCode.F3))
                 {
                     DebugDamageCastle();
                 }
 
+                // F4 : Force next wave
                 if (Input.GetKeyDown(KeyCode.F4))
                 {
                     DebugForceNextWave();
                 }
 
+                // F5 : Print game state
                 if (Input.GetKeyDown(KeyCode.F5))
                 {
                     DebugPrintGameState();
@@ -267,20 +270,6 @@ namespace BaboonTower.Game
 
         private void InitializeGame()
         {
-            // Charger la configuration depuis le JSON de la map (si disponible)
-            string mapConfigPath = "Assets/StreamingAssets/map_config.json";
-            if (System.IO.File.Exists(mapConfigPath))
-            {
-                string json = System.IO.File.ReadAllText(mapConfigPath);
-                MapConfigjson config = JsonUtility.FromJson<MapConfigjson>(json);
-                preparationTime = config.preparationTime;
-                timeBetweenWaves = config.timeBetweenWaves;
-                startingGold = config.startingGold;
-                startingCastleHP = config.startingCastleHP;
-                
-                Debug.Log($"Map config loaded: prep={preparationTime}s, between waves={timeBetweenWaves}s");
-            }
-
             networkManager = NetworkManager.Instance;
             waveManager = FindObjectOfType<WaveManager>();
             
@@ -471,97 +460,6 @@ namespace BaboonTower.Game
 
         #endregion
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        #region Wave Management
-
-        // Méthode pour signaler qu'un joueur a fini sa vague
-        public void OnLocalWaveCompleted()
-        {
-            if (waveCompletedLocally) return; // Éviter les doublons
-            waveCompletedLocally = true;
-            
-            Debug.Log($"Local player completed wave {gameState.currentWave}");
-            
-            if (isHost)
-            {
-                // L'hôte gère le timer global
-                OnPlayerCompletedWave(localPlayerState.playerName);
-            }
-            else
-            {
-                // Le client informe le serveur
-                networkManager.SendGameMessageToServer("WAVE_COMPLETED", localPlayerState.playerName);
-            }
-        }
-
-        // Méthode appelée quand un joueur termine sa vague (côté serveur uniquement)
-        private void OnPlayerCompletedWave(string playerName)
-        {
-            if (!isHost) return;
-            
-            // Si c'est le premier joueur à finir cette vague
-            if (nextWaveCountdown < 0 && gameState.currentState == GameState.WaveActive)
-            {
-                firstPlayerToFinish = playerName;
-                nextWaveCountdown = timeBetweenWaves;
-                
-                // Broadcaster à tous les joueurs
-                var message = new WaveCompletedMessage
-                {
-                    playerName = playerName,
-                    timeUntilNextWave = timeBetweenWaves,
-                    currentWave = gameState.currentWave
-                };
-                
-                string json = JsonUtility.ToJson(message);
-                networkManager.BroadcastGameMessage("FIRST_PLAYER_COMPLETED", json);
-                
-                Debug.Log($"{playerName} finished wave {gameState.currentWave} first! Next wave in {timeBetweenWaves} seconds");
-            }
-        }
-
-        // Broadcaster le countdown
-        private void BroadcastWaveCountdown(float timeRemaining)
-        {
-            if (!isHost) return;
-            
-            var message = new WaveCountdownMessage
-            {
-                timeRemaining = timeRemaining,
-                firstPlayer = firstPlayerToFinish
-            };
-            
-            string json = JsonUtility.ToJson(message);
-            networkManager.BroadcastGameMessage("WAVE_COUNTDOWN", json);
-        }
-
-        // Afficher le message de fin de vague
-        private void ShowWaveCompletedMessage(string playerName, float timeUntilNext)
-        {
-            if (gameStateText != null)
-            {
-                gameStateText.text = $"{playerName} a fini la vague en premier !!!\nProchaine vague dans {timeUntilNext:F0} secondes!";
-            }
-        }
-
-        // Mettre à jour l'UI du countdown
-        private void UpdateWaveCountdownUI(float timeRemaining, string firstPlayer)
-        {
-            if (timerText != null && timeRemaining > 0)
-            {
-                timerText.text = $"Prochaine vague dans: {Mathf.Ceil(timeRemaining)}s";
-                timerText.gameObject.SetActive(true);
-            }
-            else if (timerText != null)
-            {
-                timerText.gameObject.SetActive(false);
-            }
-        }
-
-=======
-=======
->>>>>>> Stashed changes
         #region Wave Manager Events
         
         private void OnPlayerFinishedFirst(int playerId, string message)
@@ -569,11 +467,9 @@ namespace BaboonTower.Game
             ShowNotification(message, 5f);
             
             if (gameStateText != null)
-{
-    var p = networkManager?.ConnectedPlayers?.FirstOrDefault(pp => pp.playerId == playerId);
-    var displayName = string.IsNullOrEmpty(p?.playerName) ? $"Joueur {playerId}" : p.playerName;
-    gameStateText.text = $"{displayName} a fini en premier !";
-}
+            {
+                gameStateText.text = $"Joueur {playerId} a fini en premier !";
+            }
         }
         
         private void OnNextWaveTimerUpdate(float remainingTime)
@@ -596,10 +492,6 @@ namespace BaboonTower.Game
             Debug.Log($"[GameController] Wave {waveNumber} completed");
         }
         
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
         #endregion
 
         #region Debug Methods
@@ -735,128 +627,6 @@ namespace BaboonTower.Game
                 Debug.Log("[DEBUG] Starting game in single player debug mode");
             }
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            // Informer tous les clients que le jeu commence
-            BroadcastGameState(GameState.WaitingForPlayers);
-            SetGameState(GameState.WaitingForPlayers);
-            yield return new WaitForSeconds(waveStartDelay);
-
-            // Démarrer la première phase de préparation
-            BroadcastGameState(GameState.PreparationPhase);
-            SetGameState(GameState.PreparationPhase);
-            gameState.waveTimer = preparationTime;
-
-            // Condition de boucle modifiée pour le debug solo
-            int minPlayersToKeepGoing = allowSinglePlayerDebug ? 1 : 2;
-            while (gameState.alivePlayers >= minPlayersToKeepGoing && gameState.currentState != GameState.GameOver)
-            {
-                yield return StartCoroutine(PreparationPhase());
-                yield return StartCoroutine(WavePhase());
-            }
-        }
-
-        private IEnumerator PreparationPhase()
-        {
-            if (!isHost) yield break;
-
-            BroadcastGameState(GameState.PreparationPhase);
-            SetGameState(GameState.PreparationPhase);
-            gameState.waveTimer = preparationTime;
-
-            float lastTimerSync = Time.time;
-
-            while (gameState.waveTimer > 0)
-            {
-                gameState.waveTimer -= Time.deltaTime;
-
-                // Synchroniser le timer avec les clients plus fréquemment
-                if (Time.time - lastTimerSync > TIMER_SYNC_INTERVAL)
-                {
-                    BroadcastGameTimer(gameState.waveTimer, "preparation");
-                    lastTimerSync = Time.time;
-                }
-
-                UpdateUI();
-                yield return null;
-            }
-=======
-    // Phase d'attente avec compte à rebours initial
-    BroadcastGameState(GameState.WaitingForPlayers);
-    SetGameState(GameState.WaitingForPlayers);
-    
-    // IMPORTANT : S'assurer que tous les clients sont synchronisés
-    yield return new WaitForSeconds(1f);
-            
-float countdownTimer = initialPreparationTime;
-    while (countdownTimer > 0)
-    {
-        BroadcastGameTimer(countdownTimer, "initial");
-        
-        if (timerText != null)
-        {
-            timerText.text = $"Début dans: {Mathf.Ceil(countdownTimer)}s";
->>>>>>> Stashed changes
-        }
-        
-        yield return new WaitForSeconds(1f);
-        countdownTimer -= 1f;
-    }
-
-// Phase de préparation initiale
-    BroadcastGameState(GameState.PreparationPhase);
-    SetGameState(GameState.PreparationPhase);
-    
-    ShowNotification("Phase d'achat - Placez vos tours !", 3f);
-    
-    // Timer avant la première vague
-    float prepTimer = waveStartDelay;
-    while (prepTimer > 0)
-    {
-        BroadcastGameTimer(prepTimer, "preparation");
-        
-        if (timerText != null)
-        {
-<<<<<<< Updated upstream
-            if (!isHost) yield break;
-
-            gameState.currentWave++;
-            waveCompletedLocally = false; // Reset pour la nouvelle vague
-
-            BroadcastGameState(GameState.WaveActive);
-            BroadcastWaveNumber(gameState.currentWave);
-            SetGameState(GameState.WaveActive);
-
-            OnWaveStarted?.Invoke(gameState.currentWave);
-
-            // Chercher et déclencher le WaveManager
-            WaveManager waveManager = FindObjectOfType<WaveManager>();
-            if (waveManager != null)
-            {
-                Debug.Log($"Starting wave {gameState.currentWave} with WaveManager");
-                waveManager.StartWave(gameState.currentWave);
-
-                // Attendre que la vague soit terminée OU qu'un joueur finisse en premier
-                while (waveManager.IsWaveInProgress() && nextWaveCountdown < 0)
-                {
-                    yield return new WaitForSeconds(0.5f);
-                }
-
-                Debug.Log($"Wave {gameState.currentWave} phase completed");
-            }
-            else
-            {
-                Debug.LogError("WaveManager not found! Cannot spawn enemies!");
-                // Fallback : attendre 5 secondes
-                yield return new WaitForSeconds(5f);
-            }
-
-            // Vérifier les éliminations et gagnant
-            CheckGameEndConditions();
-=======
-            timerText.text = $"Première vague dans: {Mathf.Ceil(prepTimer)}s";
->>>>>>> Stashed changes
-=======
     // Phase d'attente avec compte à rebours initial
     BroadcastGameState(GameState.WaitingForPlayers);
     SetGameState(GameState.WaitingForPlayers);
@@ -893,7 +663,6 @@ float countdownTimer = initialPreparationTime;
         if (timerText != null)
         {
             timerText.text = $"Première vague dans: {Mathf.Ceil(prepTimer)}s";
->>>>>>> Stashed changes
         }
         
         yield return new WaitForSeconds(1f);
@@ -985,15 +754,7 @@ private IEnumerator DelayedFirstWave()
                 UpdateUI();
             }
         }
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-
-=======
         
->>>>>>> Stashed changes
-=======
-        
->>>>>>> Stashed changes
         private void SetGameState(GameState newState)
         {
             if (gameState.currentState != newState)
@@ -1004,15 +765,7 @@ private IEnumerator DelayedFirstWave()
                 Debug.Log($"Game State changed to: {newState}");
             }
         }
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-
-=======
         
->>>>>>> Stashed changes
-=======
-        
->>>>>>> Stashed changes
         private void EliminatePlayer(PlayerGameState player)
         {
             if (player.isEliminated) return;
@@ -1067,6 +820,9 @@ private IEnumerator DelayedFirstWave()
 
         #region Network Synchronization
 
+        /// <summary>
+        /// Synchronisation générale de l'état de jeu (appelée périodiquement)
+        /// </summary>
         private void SyncGameState()
         {
             if (!isHost) return;
@@ -1075,6 +831,9 @@ private IEnumerator DelayedFirstWave()
             BroadcastPlayerStates();
         }
 
+        /// <summary>
+        /// Diffuse l'état de jeu à tous les clients (Host only)
+        /// </summary>
         private void BroadcastGameState(GameState state)
         {
             if (!isHost || networkManager == null) return;
@@ -1093,6 +852,9 @@ private IEnumerator DelayedFirstWave()
             Debug.Log($"Broadcasting game state: {state}");
         }
 
+        /// <summary>
+        /// Diffuse le numéro de vague à tous les clients (Host only)
+        /// </summary>
         private void BroadcastWaveNumber(int waveNumber)
         {
             if (!isHost || networkManager == null) return;
@@ -1101,6 +863,9 @@ private IEnumerator DelayedFirstWave()
             Debug.Log($"Broadcasting wave number: {waveNumber}");
         }
 
+        /// <summary>
+        /// Diffuse le timer à tous les clients (Host only)
+        /// </summary>
         private void BroadcastGameTimer(float timer, string phase)
         {
             if (!isHost || networkManager == null) return;
@@ -1115,6 +880,9 @@ private IEnumerator DelayedFirstWave()
             networkManager.BroadcastGameMessage("GAME_TIMER", json);
         }
 
+        /// <summary>
+        /// Diffuse l'état de tous les joueurs (Host only)
+        /// </summary>
         private void BroadcastPlayerStates()
         {
             if (!isHost || networkManager == null) return;
@@ -1128,6 +896,9 @@ private IEnumerator DelayedFirstWave()
             networkManager.BroadcastGameMessage("PLAYERS_STATES", json);
         }
 
+        /// <summary>
+        /// Diffuse qu'un joueur a été éliminé (Host only)
+        /// </summary>
         private void BroadcastPlayerElimination(PlayerGameState player)
         {
             if (!isHost || networkManager == null) return;
@@ -1136,6 +907,9 @@ private IEnumerator DelayedFirstWave()
             networkManager.BroadcastGameMessage("PLAYER_ELIMINATED", json);
         }
 
+        /// <summary>
+        /// Diffuse le gagnant de la partie (Host only)
+        /// </summary>
         private void BroadcastGameWinner(PlayerGameState winner)
         {
             if (!isHost || networkManager == null) return;
@@ -1143,15 +917,6 @@ private IEnumerator DelayedFirstWave()
             string json = JsonUtility.ToJson(winner);
             networkManager.BroadcastGameMessage("GAME_WINNER", json);
         }
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-
-        private void OnGameMessageReceived(string messageType, string data)
-        {
-            if (!isHost)
-=======
-=======
->>>>>>> Stashed changes
 private void Awake()
 {
     // Créer le DebugLogger s'il n'existe pas
@@ -1177,10 +942,6 @@ private void OnGameMessageReceived(string messageType, string data)
         case "NEXT_WAVE_TIMER":
         case "WAVE_COMPLETED":  // AJOUT IMPORTANT
             if (waveManager != null)
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
             {
                 Debug.Log($"[GameController] Forwarding {messageType} to WaveManager");
                 waveManager.ProcessNetworkMessage(messageType, data);
@@ -1201,9 +962,6 @@ private void OnGameMessageReceived(string messageType, string data)
     }
 }
 
-<<<<<<< Updated upstream
-        private void ProcessServerGameMessage(string messageType, string data)
-=======
         /// <summary>
         /// Traite les messages de jeu reçus du serveur (clients uniquement)
         /// </summary>
@@ -1212,10 +970,6 @@ private void ProcessServerGameMessage(string messageType, string data)
     try
     {
         switch (messageType)
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
         {
             case "GAME_STATE_UPDATE":
                 HandleGameStateMessage(data);
@@ -1224,142 +978,6 @@ private void ProcessServerGameMessage(string messageType, string data)
             case "WAVE_STARTED":
                 if (int.TryParse(data, out int wave))
                 {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                    case "GAME_STATE_UPDATE":
-                        HandleGameStateMessage(data);
-                        break;
-
-                    case "WAVE_STARTED":
-                        if (int.TryParse(data, out int wave))
-                        {
-                            gameState.currentWave = wave;
-                            waveCompletedLocally = false; // Reset pour la nouvelle vague
-                            OnWaveStarted?.Invoke(wave);
-                            
-                            // IMPORTANT: Les clients doivent aussi démarrer leur WaveManager!
-                            WaveManager waveManager = FindObjectOfType<WaveManager>();
-                            if (waveManager != null)
-                            {
-                                waveManager.StartWave(wave);
-                            }
-                            
-                            UpdateUI();
-                        }
-                        break;
-                        
-                    case "FIRST_PLAYER_COMPLETED":
-                        var completedMsg = JsonUtility.FromJson<WaveCompletedMessage>(data);
-                        ShowWaveCompletedMessage(completedMsg.playerName, completedMsg.timeUntilNextWave);
-                        break;
-                        
-                    case "WAVE_COUNTDOWN":
-                        var countdownMsg = JsonUtility.FromJson<WaveCountdownMessage>(data);
-                        UpdateWaveCountdownUI(countdownMsg.timeRemaining, countdownMsg.firstPlayer);
-                        break;
-
-                    case "GAME_TIMER":
-                        HandleGameTimerMessage(data);
-                        break;
-
-                    case "PLAYERS_STATES":
-                        HandlePlayerStatesMessage(data);
-                        break;
-
-                    case "PLAYER_ELIMINATED":
-                        HandlePlayerEliminatedMessage(data);
-                        break;
-
-                    case "GAME_WINNER":
-                        HandleGameWinnerMessage(data);
-                        break;
-=======
-                    gameState.currentWave = wave;
-                    OnWaveStarted?.Invoke(wave);
-                    UpdateUI();
->>>>>>> Stashed changes
-                }
-                break;
-
-            case "GAME_TIMER":
-                HandleGameTimerMessage(data);
-                break;
-
-            case "PLAYERS_STATES":
-                HandlePlayerStatesMessage(data);
-                break;
-
-            case "PLAYER_ELIMINATED":
-                HandlePlayerEliminatedMessage(data);
-                break;
-
-            case "GAME_WINNER":
-                HandleGameWinnerMessage(data);
-                break;
-                
-            // Transférer seulement les messages de synchronisation de vagues
-            case "WAVE_START_SYNC":
-            case "FIRST_FINISHER":
-            case "NEXT_WAVE_TIMER":
-                if (waveManager != null)
-                {
-                    waveManager.ProcessNetworkMessage(messageType, data);
-                }
-                break;
-        }
-    }
-    catch (System.Exception e)
-    {
-        Debug.LogError($"Error processing server game message {messageType}: {e.Message}");
-    }
-}
-
-<<<<<<< Updated upstream
-        private void ProcessClientGameMessage(string messageType, string data)
-        {
-            if (!isHost) return;
-            
-            try
-            {
-                switch (messageType)
-                {
-                    case "SPEND_GOLD_REQUEST":
-                        var parts = data.Split('|');
-                        if (parts.Length == 2 && int.TryParse(parts[0], out int playerId) && int.TryParse(parts[1], out int amount))
-                        {
-                            var player = gameState.playersStates.Find(p => p.playerId == playerId);
-                            if (player != null && player.gold >= amount)
-                            {
-                                player.gold -= amount;
-                                BroadcastPlayerStates();
-                                UpdateUI();
-                            }
-                        }
-                        break;
-                        
-                    case "WAVE_COMPLETED":
-                        OnPlayerCompletedWave(data); // data contient le nom du joueur
-                        break;
-
-                    case "PLAYER_ACTION":
-                        // TODO: Traiter les actions des joueurs (placement de tours, etc.)
-                        Debug.Log($"Received player action: {data}");
-                        break;
-=======
-        /// <summary>
-        /// Traite les demandes de jeu reçues des clients (host uniquement)
-        /// </summary>
-private void ProcessClientGameMessage(string messageType, string data)
-{
-    try
-    {
-        switch (messageType)
-        {
-            case "SPEND_GOLD_REQUEST":
-                var parts = data.Split('|');
-                if (parts.Length == 2 && int.TryParse(parts[0], out int playerId) && int.TryParse(parts[1], out int amount))
-                {
-=======
                     gameState.currentWave = wave;
                     OnWaveStarted?.Invoke(wave);
                     UpdateUI();
@@ -1412,18 +1030,13 @@ private void ProcessClientGameMessage(string messageType, string data)
                 var parts = data.Split('|');
                 if (parts.Length == 2 && int.TryParse(parts[0], out int playerId) && int.TryParse(parts[1], out int amount))
                 {
->>>>>>> Stashed changes
                     var player = gameState.playersStates.Find(p => p.playerId == playerId);
                     if (player != null && player.gold >= amount)
-                    {
+                    { 
                         player.gold -= amount;
                         BroadcastPlayerStates();
                         UpdateUI();
                     }
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                 }
                 break;
 
@@ -1670,6 +1283,9 @@ case "WAVE_COMPLETED":
             }
         }
 
+        /// <summary>
+        /// Appelé quand le NetworkManager déclenche OnGameStarted (depuis le lobby)
+        /// </summary>
         private void OnNetworkGameStarted()
         {
             Debug.Log("Game started signal received from NetworkManager");

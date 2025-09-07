@@ -202,31 +202,6 @@ public void StartWave(int waveNumber)
         /// <summary>
         /// SpawnWaveCoroutine - Coroutine de spawn des ennemis pour une vague
         /// </summary>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-public void StartWave(int waveNumber)
-{
-    // IMPORTANT: Tous les joueurs (host ET clients) doivent spawn leurs propres ennemis
-    // Chaque joueur gère ses propres ennemis localement
-    
-    if (waveInProgress)
-    {
-        Debug.LogWarning("Wave already in progress!");
-        return;
-    }
-
-    if (mapLoader == null)
-    {
-        Debug.LogError("Cannot start wave: MapLoaderV3 is null!");
-        return;
-    }
-
-    Debug.Log($"[{(NetworkManager.Instance?.CurrentMode == NetworkMode.Host ? "HOST" : "CLIENT")}] Starting wave {waveNumber}");
-    StartCoroutine(SpawnWave(waveNumber));
-}
-=======
-=======
->>>>>>> Stashed changes
         private IEnumerator SpawnWaveCoroutine(int waveNumber)
         {
             WaveData waveData = GetWaveData(waveNumber);
@@ -258,10 +233,6 @@ public void StartWave(int waveNumber)
         }
         
         #region Network Message Handling
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
 
 
@@ -637,14 +608,7 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
     if (firstFinisherPlayerId == -1)
     {
         firstFinisherPlayerId = message.playerId;
-            // Résolution serveur du nom par playerId
-    var resolved = networkManager?.ConnectedPlayers
-        ?.FirstOrDefault(p => p.playerId == message.playerId)?.playerName;
-    firstFinisherName = string.IsNullOrEmpty(resolved) ? $"Player{message.playerId}" : resolved;
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-    Debug.Log($"[WaveManager Host] Resolving first finisher name: client='{message.playerName}', server='{firstFinisherName}'");
-#endif
+        firstFinisherName = message.playerName;
         BroadcastFirstFinisher(message.playerId, message.playerName);
         if (nextWaveTimerCoroutine != null) StopCoroutine(nextWaveTimerCoroutine);
         nextWaveTimerCoroutine = StartCoroutine(NextWaveTimerCoroutine());
@@ -823,179 +787,6 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
             }
             activeEnemies.Clear();
         }
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-
-        /// <summary>
-        /// Coroutine pour spawner les ennemis de la vague
-        /// </summary>
-        private IEnumerator SpawnWave(int waveNumber)
-        {
-			waveInProgress = true;
-			currentWaveNumber = waveNumber;
-			enemiesSpawned = 0;  // Ajouter cette ligne
-			enemiesAlive = 0;    // Ajouter cette ligne
-            // Calculer le nombre d'ennemis pour cette vague
-            int totalEnemies = Mathf.RoundToInt(baseEnemiesPerWave * Mathf.Pow(difficultyMultiplier, waveNumber - 1));
-            totalEnemies = Mathf.Max(3, totalEnemies);
-
-            // Répartition des types d'ennemis selon la vague
-            int smallEnemies = Mathf.Max(1, totalEnemies / 2);
-            int mediumEnemies = waveNumber > 2 ? Mathf.Max(1, totalEnemies / 3) : 0;
-            int highEnemies = waveNumber > 5 ? Mathf.Max(1, totalEnemies / 6) : 0;
-
-            // Ajuster pour avoir le bon total
-            int total = smallEnemies + mediumEnemies + highEnemies;
-            if (total < totalEnemies)
-            {
-                smallEnemies += (totalEnemies - total);
-            }
-
-            Debug.Log($"Wave {waveNumber}: Total={totalEnemies} | Small={smallEnemies}, Medium={mediumEnemies}, High={highEnemies}");
-
-            // Spawn des petits ennemis
-            for (int i = 0; i < smallEnemies; i++)
-            {
-                SpawnEnemy(EnemyType.Small);
-                yield return new WaitForSeconds(spawnDelay);
-            }
-
-            // Spawn des ennemis moyens
-            for (int i = 0; i < mediumEnemies; i++)
-            {
-                SpawnEnemy(EnemyType.Medium);
-                yield return new WaitForSeconds(spawnDelay * 1.5f);
-            }
-
-            // Spawn des gros ennemis
-            for (int i = 0; i < highEnemies; i++)
-            {
-                SpawnEnemy(EnemyType.High);
-                yield return new WaitForSeconds(spawnDelay * 2f);
-            }
-
-            Debug.Log($"Wave {waveNumber} spawning complete. Total spawned: {enemiesSpawned}");
-
-            // Attendre que tous les ennemis soient morts
-            while (enemiesAlive > 0)
-            {
-                activeEnemies.RemoveAll(e => e == null);
-                yield return new WaitForSeconds(0.5f);
-            }
-
-            Debug.Log($"Wave {waveNumber} complete! All enemies defeated.");
-            waveInProgress = false;
-
-			if (gameController != null)
-			{
-				gameController.OnLocalWaveCompleted();
-			}
-        }
-
-        /// <summary>
-        /// Spawn un ennemi d'un type donné - Adapté pour MapLoaderV3
-        /// </summary>
-        private void SpawnEnemy(EnemyType type)
-        {
-            if (mapLoader == null)
-            {
-                Debug.LogError("Cannot spawn enemy: MapLoaderV3 is null!");
-                return;
-            }
-
-            // Vérifier que la map est chargée
-            if (mapLoader.WorldPath == null || mapLoader.WorldPath.Count < 2)
-            {
-                Debug.LogError("Cannot spawn enemy: Map path not available!");
-                return;
-            }
-
-            // Créer l'ennemi
-            GameObject enemyObj = new GameObject($"Enemy_{type}_{enemiesSpawned}");
-            Enemy enemy = enemyObj.AddComponent<Enemy>();
-
-            // Initialiser l'ennemi avec le chemin de MapLoaderV3
-            enemy.InitializeForMapV3(type, mapLoader.WorldPath, gameController);
-
-            // Configurer les callbacks
-            enemy.OnEnemyKilled += OnEnemyKilled;
-            enemy.OnEnemyReachedEnd += OnEnemyReachedEnd;
-
-            // Ajouter à la liste
-            activeEnemies.Add(enemy);
-
-            enemiesSpawned++;
-            enemiesAlive++;
-
-            Vector3 spawnWorldPos = mapLoader.GridToWorldPosition(mapLoader.SpawnPos);
-            Debug.Log($"Spawned {type} enemy at {spawnWorldPos}. Alive: {enemiesAlive}");
-        }
-
-        /// <summary>
-        /// Appelé quand un ennemi est tué
-        /// </summary>
-        private void OnEnemyKilled(Enemy enemy, int goldReward)
-        {
-            enemiesAlive--;
-            activeEnemies.Remove(enemy);
-            Debug.Log($"Enemy killed! Reward: {goldReward} gold. Enemies remaining: {enemiesAlive}");
-        }
-
-        /// <summary>
-        /// Appelé quand un ennemi atteint le château
-        /// </summary>
-        private void OnEnemyReachedEnd(Enemy enemy)
-        {
-            enemiesAlive--;
-            activeEnemies.Remove(enemy);
-            Debug.Log($"Enemy reached castle! Enemies remaining: {enemiesAlive}");
-        }
-
-        /// <summary>
-        /// Méthodes de debug
-        /// </summary>
-		[ContextMenu("Force Start Wave 1")]
-		private void DebugStartWave1()
-		{
-			StartWave(1);
-		}
-
-        [ContextMenu("Print Wave Status")]
-        private void DebugPrintStatus()
-        {
-            Debug.Log($"=== WAVE MANAGER STATUS ===");
-            Debug.Log($"Current Wave: {currentWaveNumber}");
-            Debug.Log($"Wave In Progress: {waveInProgress}");
-            Debug.Log($"Enemies Spawned: {enemiesSpawned}");
-            Debug.Log($"Enemies Alive: {enemiesAlive}");
-            Debug.Log($"Active Enemies Count: {activeEnemies.Count}");
-            Debug.Log($"MapLoader Available: {mapLoader != null}");
-
-            if (mapLoader != null)
-            {
-                Debug.Log($"Map Spawn: {mapLoader.SpawnPos}");
-                Debug.Log($"Map Castle: {mapLoader.CastlePos}");
-                Debug.Log($"Map Path Points: {mapLoader.WorldPath?.Count ?? 0}");
-            }
-
-            Debug.Log($"===========================");
-        }
-
-        /// <summary>
-        /// Affichage GUI pour le debug
-        /// </summary>
-        private void OnGUI()
-        {
-            if (Application.isPlaying)
-            {
-                GUI.Box(new Rect(10, 210, 200, 100), "Wave Manager V3");
-                GUI.Label(new Rect(20, 235, 180, 20), $"Wave: {currentWaveNumber}");
-                GUI.Label(new Rect(20, 250, 180, 20), $"In Progress: {waveInProgress}");
-                GUI.Label(new Rect(20, 265, 180, 20), $"Enemies: {enemiesAlive}/{enemiesSpawned}");
-                GUI.Label(new Rect(20, 280, 180, 20), $"MapLoader: {(mapLoader != null ? "OK" : "MISSING")}");
-
-                if (GUI.Button(new Rect(20, 290, 80, 15), "Wave 1") && NetworkManager.Instance?.CurrentMode == NetworkMode.Host)
-=======
         
         public int GetCurrentWave() => currentWave;
         
@@ -1014,27 +805,6 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
             foreach (var enemy in activeEnemies)
             {
                 if (enemy != null)
->>>>>>> Stashed changes
-=======
-        
-        public int GetCurrentWave() => currentWave;
-        
-        public int GetActiveEnemiesCount() => activeEnemies.Count;
-        
-        #endregion
-        
-        #region Debug Methods
-        
-        [ContextMenu("Force Complete Wave")]
-        private void DebugForceCompleteWave()
-        {
-            Debug.Log("[WaveManager] Force completing wave");
-            
-            // Détruire tous les ennemis
-            foreach (var enemy in activeEnemies)
-            {
-                if (enemy != null)
->>>>>>> Stashed changes
                 {
                     Destroy(enemy.gameObject);
                 }

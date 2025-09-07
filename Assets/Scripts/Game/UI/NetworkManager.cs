@@ -82,7 +82,9 @@ namespace BaboonTower.Network
         public int defaultPort = 7777;
         public int maxPlayers = 16;
         public int CurrentPort { get; private set; }
-
+    public bool GameHasStarted { get; private set; } = false;
+    public bool IsInGameScene { get; private set; } = false;
+    
         public NetworkMode CurrentMode { get; private set; } = NetworkMode.None;
         public ConnectionState CurrentState { get; private set; } = ConnectionState.Disconnected;
  /// <summary>
@@ -203,7 +205,11 @@ public void SendGameMessageToServer(string messageType, string data)
 
             SendMessageToServer(messageType, data);
         }
-
+public void NotifyGameSceneLoaded()
+    {
+        IsInGameScene = true;
+        Debug.Log($"[NetworkManager] GameScene loaded - GameHasStarted: {GameHasStarted}");
+    }
         /// <summary>
         /// RequestSpendGold - Envoie une demande de dépense d'or au serveur (Client only)
         /// </summary>
@@ -310,7 +316,9 @@ public void SendGameMessageToServer(string messageType, string data)
 
         public void StopNetworking()
         {
-            isRunning = false;
+			isRunning = false;
+			GameHasStarted = false;  // RÉINITIALISER
+			IsInGameScene = false;    // RÉINITIALISER
 
             if (CurrentMode == NetworkMode.Host)
             {
@@ -414,14 +422,13 @@ public void HostTryStartGame()
     // IMPORTANT : Petit délai avant de déclencher localement pour s'assurer que le message est envoyé
     StartCoroutine(DelayedGameStart());
 }
-
-private System.Collections.IEnumerator DelayedGameStart()
-{
-    yield return new WaitForSeconds(0.1f);
-    Debug.Log("[NetworkManager] Invoking OnGameStarted for host");
-    OnGameStarted?.Invoke();
-}
-
+ private System.Collections.IEnumerator DelayedGameStart()
+    {
+        yield return new WaitForSeconds(0.1f);
+        GameHasStarted = true;  // AJOUTER
+        Debug.Log("[NetworkManager] Invoking OnGameStarted for host");
+        OnGameStarted?.Invoke();
+    }
 
         #region Server Methods (Host)
 
@@ -576,14 +583,13 @@ private System.Collections.IEnumerator DelayedGameStart()
                     }
                     break;
 				case "REQUEST_GAME_STATE":
-					{
-        // Un client demande l'état du jeu
-        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "GameScene")
-        {
-            SendMessageToClient(client, "FORCE_GAME_START", "");
-        }
-        break;
+    if (GameHasStarted)
+    {
+        SendMessageToClient(client, "GAME_START", "SYNC");
+        Debug.Log($"[NetworkManager Host] Sent game state to client {client.playerData.playerName}");
     }
+    break;
+    
                 case "PLAYER_READY":
                     {
                         var player = ConnectedPlayers.FirstOrDefault(p => p.playerId == client.playerData.playerId);
@@ -790,12 +796,19 @@ private void ClientLoop()
 {
     byte[] buffer = new byte[4096];
     float lastStateCheck = 0;
+bool hasRequestedGameState = false;  // AJOUTER
 
     while (isRunning && client != null && client.Connected)
     {
         try
         {
             // Vérification périodique de l'état (toutes les 5 secondes)
+			            if (IsInGameScene && !GameHasStarted && !hasRequestedGameState)
+            {
+                SendMessageToServer("REQUEST_GAME_STATE", "");
+                hasRequestedGameState = true;
+                Debug.Log("[NetworkManager Client] Requesting game state from server");
+            }
             if (Time.time - lastStateCheck > 5f)
             {
                 lastStateCheck = Time.time;
@@ -858,11 +871,12 @@ private void HandleServerMessage(NetworkMessage message)
         case "PLAYERS_UPDATE":
             UpdatePlayersList(message.data);
             break;
-
-        case "GAME_START":
-            Debug.Log("[NetworkManager Client] GAME_START received! Invoking OnGameStarted event");
-            OnGameStarted?.Invoke();
-            break;
+		
+		case "GAME_START":
+        Debug.Log("[NetworkManager Client] GAME_START received! Setting GameHasStarted flag");
+        GameHasStarted = true;  // AJOUTER
+        OnGameStarted?.Invoke();
+        break;
             
         case "FORCE_GAME_START":
             Debug.Log("[NetworkManager Client] Received FORCE_GAME_START - Loading game scene");
