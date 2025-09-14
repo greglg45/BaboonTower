@@ -21,7 +21,7 @@
         "effectPower": 1.5
       },
       "cost": {
-        "gold": 4,
+        "gold": 1,
         "cooldown": 10
       },
       "effect": {
@@ -52,7 +52,7 @@
       "category": "tower_disruptor",
       "tier": 2,
       "stats": {
-        "health": 25,
+        "health": 1,
         "moveSpeed": 2.0,
         "damageTocastle": 1,
         "effectRadius": 3.0,
@@ -99,7 +99,7 @@
         "effectPower": 1
       },
       "cost": {
-        "gold": 80,
+        "gold": 1,
         "cooldown": 20
       },
       "effect": {

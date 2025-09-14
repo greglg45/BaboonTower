@@ -230,18 +230,24 @@ namespace BaboonTower.Game
         
         #region Combat
         
-        private void Fire()
-        {
-            if (currentTarget == null) return;
-            
-            nextFireTime = Time.time + (1f / towerData.stats.fireRate);
-            
-            // Create projectile
-            CreateProjectile(currentTarget);
-            
-            // Play fire sound (if implemented)
-            // AudioManager.PlaySound(towerData.audio.fireSound);
-        }
+private void Fire()
+{
+    if (currentTarget == null) return;
+
+    float fireInterval = 1f / towerData.stats.fireRate;
+
+    // Init du timer si nécessaire (évite un burst au premier tir)
+    if (nextFireTime <= 0f)
+        nextFireTime = Time.time;
+
+    // Rattrapage des tirs manqués si la frame a été longue
+    int safety = 0;                     // garde‑fou contre les spirales
+    while (Time.time >= nextFireTime && safety++ < 5)
+    {
+        CreateProjectile(currentTarget);
+        nextFireTime += fireInterval;   // important: incrémenter par intervalles fixes, pas repartir de Time.time
+    }
+}
         
         private void CreateProjectile(Enemy target)
         {

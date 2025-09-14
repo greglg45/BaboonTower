@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using BaboonTower.Network;
+using BaboonTower.Game;
+using System.IO;
 
 namespace BaboonTower.UI
 {
@@ -25,6 +27,16 @@ namespace BaboonTower.UI
         [SerializeField] private Button disconnectButton;
         [SerializeField] private Button backToMenuButton;
 
+        [Header("Wave Configuration Panel")]
+        [SerializeField] private GameObject waveConfigPanel;
+        [SerializeField] private TMP_InputField initialPrepTimeInput;
+        [SerializeField] private TMP_InputField delayAfterFirstInput;
+        [SerializeField] private TMP_InputField prepBetweenWavesInput;
+        [SerializeField] private Button applyConfigButton;
+        [SerializeField] private Button toggleConfigButton;
+        [SerializeField] private TextMeshProUGUI configStatusText;
+        [SerializeField] private GameObject waveConfigSection;
+
         [Header("Colors")]
         [SerializeField] private Color connectedColor = Color.green;
         [SerializeField] private Color listeningColor = Color.blue;
@@ -39,6 +51,10 @@ namespace BaboonTower.UI
         [SerializeField] private TextMeshProUGUI chatLogText;
         [SerializeField] private ScrollRect chatScrollRect;
 
+        // Configuration des vagues
+        private WaveConfigurationMessage currentWaveConfig;
+        private const string WAVE_CONFIG_KEY = "WaveConfiguration";
+
         // State local UI
         private bool isPlayerReady = false;
         private List<GameObject> playerItems = new List<GameObject>();
@@ -49,6 +65,7 @@ namespace BaboonTower.UI
         {
             InitializeLobby();
             SetupEventListeners();
+            InitializeWaveConfig();
             UpdateUI();
         }
 
@@ -68,6 +85,10 @@ namespace BaboonTower.UI
             if (disconnectButton) disconnectButton.onClick.AddListener(Disconnect);
             if (backToMenuButton) backToMenuButton.onClick.AddListener(BackToMenu);
 
+            // Bouton de configuration des vagues
+            if (toggleConfigButton) toggleConfigButton.onClick.AddListener(ToggleWaveConfigPanel);
+            if (applyConfigButton) applyConfigButton.onClick.AddListener(ApplyWaveConfiguration);
+
             // Chat
             if (chatSendButton) chatSendButton.onClick.AddListener(SendChat);
             if (chatInput) chatInput.onSubmit.AddListener(_ => { SendChat(); });
@@ -75,17 +96,26 @@ namespace BaboonTower.UI
             UpdateUI();
         }
 
-        private void SetupEventListeners()
-        {
-            if (Net == null) return;
+private void SetupEventListeners()
+{
+    if (Net == null) 
+    {
+        Debug.LogError("[LobbyController] NetworkManager is null in SetupEventListeners!");
+        return;
+    }
 
-            // Abonnements **d'instance** (pas statiques)
-            Net.OnConnectionStateChanged += OnConnectionStateChanged;
-            Net.OnPlayersUpdated += OnPlayersUpdated;
-            Net.OnServerMessage += OnServerMessage;
-            Net.OnGameStarted += OnGameStarted;
-            Net.OnChatMessage += OnChatMessageReceived;
-        }
+    Debug.Log("[LobbyController] Setting up event listeners");
+
+    // Abonnements **d'instance** (pas statiques)
+    Net.OnConnectionStateChanged += OnConnectionStateChanged;
+    Net.OnPlayersUpdated += OnPlayersUpdated;
+    Net.OnServerMessage += OnServerMessage;
+    Net.OnGameStarted += OnGameStarted;  // IMPORTANT : Vérifier que ceci est bien présent
+    Net.OnChatMessage += OnChatMessageReceived;
+    Net.OnGameMessage += OnGameMessageReceived;
+    
+    Debug.Log("[LobbyController] Event listeners setup complete");
+}
 
         private void RemoveEventListeners()
         {
@@ -96,6 +126,318 @@ namespace BaboonTower.UI
             Net.OnServerMessage -= OnServerMessage;
             Net.OnGameStarted -= OnGameStarted;
             Net.OnChatMessage -= OnChatMessageReceived;
+            Net.OnGameMessage -= OnGameMessageReceived;
+        }
+
+        #endregion
+
+        #region Wave Configuration
+
+        /// <summary>
+        /// InitializeWaveConfig - Initialise le panel de configuration des vagues
+        /// </summary>
+        private void InitializeWaveConfig()
+        {
+            // Créer une configuration par défaut si elle n'existe pas
+            currentWaveConfig = new WaveConfigurationMessage
+            {
+                initialPreparationTime = 10f,
+                delayAfterFirstFinish = 15f,
+                preparationTimeBetweenWaves = 5f
+            };
+
+            // Seulement visible pour l'hôte
+            bool isHost = Net?.CurrentMode == NetworkMode.Host;
+            
+            if (waveConfigPanel != null)
+            {
+                waveConfigPanel.SetActive(false); // Caché par défaut
+            }
+            
+            if (toggleConfigButton != null)
+            {
+                toggleConfigButton.gameObject.SetActive(isHost);
+            }
+            
+            if (waveConfigSection != null)
+            {
+                waveConfigSection.SetActive(isHost);
+            }
+            
+            // Si on est l'hôte, charger la configuration existante
+            if (isHost)
+            {
+                LoadWaveConfiguration();
+            }
+        }
+
+        /// <summary>
+        /// ToggleWaveConfigPanel - Affiche ou masque le panel de configuration
+        /// </summary>
+        private void ToggleWaveConfigPanel()
+        {
+            if (waveConfigPanel != null)
+            {
+                bool newState = !waveConfigPanel.activeSelf;
+                waveConfigPanel.SetActive(newState);
+                
+                // Si on ouvre le panel, charger la config actuelle
+                if (newState)
+                {
+                    LoadWaveConfiguration();
+                }
+            }
+        }
+
+        /// <summary>
+        /// LoadWaveConfiguration - Charge la configuration des vagues
+        /// </summary>
+        private void LoadWaveConfiguration()
+        {
+            // D'abord essayer de charger depuis PlayerPrefs
+            string savedConfig = PlayerPrefs.GetString(WAVE_CONFIG_KEY, "");
+            
+            if (!string.IsNullOrEmpty(savedConfig))
+            {
+                try
+                {
+                    currentWaveConfig = JsonUtility.FromJson<WaveConfigurationMessage>(savedConfig);
+                    Debug.Log("[LobbyController] Configuration loaded from PlayerPrefs");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[LobbyController] Error loading saved configuration: {e.Message}");
+                    LoadWaveConfigurationFromFile();
+                }
+            }
+            else
+            {
+                // Sinon, essayer de charger depuis le fichier StreamingAssets
+                LoadWaveConfigurationFromFile();
+            }
+            
+            // Mettre à jour les champs UI
+            UpdateWaveConfigUI();
+        }
+
+        /// <summary>
+        /// LoadWaveConfigurationFromFile - Charge la configuration depuis le fichier JSON
+        /// </summary>
+        private void LoadWaveConfigurationFromFile()
+        {
+            string configPath = Path.Combine(Application.streamingAssetsPath, "WaveConfig.json");
+            
+            if (File.Exists(configPath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(configPath);
+                    // Parser seulement les champs qui nous intéressent
+                    var fullConfig = JsonUtility.FromJson<FullWaveConfiguration>(json);
+                    
+                    currentWaveConfig = new WaveConfigurationMessage
+                    {
+                        initialPreparationTime = fullConfig.initialPreparationTime,
+                        delayAfterFirstFinish = fullConfig.delayAfterFirstFinish,
+                        preparationTimeBetweenWaves = fullConfig.preparationTimeBetweenWaves
+                    };
+                    
+                    Debug.Log($"[LobbyController] Configuration loaded from file: {configPath}");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[LobbyController] Error loading configuration file: {e.Message}");
+                    LoadDefaultWaveConfiguration();
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[LobbyController] Configuration file not found: {configPath}");
+                LoadDefaultWaveConfiguration();
+            }
+        }
+
+        /// <summary>
+        /// LoadDefaultWaveConfiguration - Charge une configuration par défaut
+        /// </summary>
+        private void LoadDefaultWaveConfiguration()
+        {
+            currentWaveConfig = new WaveConfigurationMessage
+            {
+                initialPreparationTime = 10f,
+                delayAfterFirstFinish = 15f,
+                preparationTimeBetweenWaves = 5f
+            };
+            
+            Debug.Log("[LobbyController] Using default wave configuration");
+        }
+
+        /// <summary>
+        /// UpdateWaveConfigUI - Met à jour les champs UI avec la configuration actuelle
+        /// </summary>
+        private void UpdateWaveConfigUI()
+        {
+            if (initialPrepTimeInput != null)
+                initialPrepTimeInput.text = currentWaveConfig.initialPreparationTime.ToString("F1");
+                
+            if (delayAfterFirstInput != null)
+                delayAfterFirstInput.text = currentWaveConfig.delayAfterFirstFinish.ToString("F1");
+                
+            if (prepBetweenWavesInput != null)
+                prepBetweenWavesInput.text = currentWaveConfig.preparationTimeBetweenWaves.ToString("F1");
+        }
+
+        /// <summary>
+        /// ApplyWaveConfiguration - Applique et diffuse la configuration des vagues
+        /// </summary>
+        private void ApplyWaveConfiguration()
+        {
+            if (Net?.CurrentMode != NetworkMode.Host) 
+            {
+                Debug.LogWarning("[LobbyController] Only host can modify wave configuration");
+                UpdateConfigStatus("Seul l'hôte peut modifier la configuration", Color.red);
+                return;
+            }
+            
+            // Valider et parser les inputs
+            bool isValid = true;
+            float initialPrep = 10f;
+            float delayAfterFirst = 15f;
+            float prepBetweenWaves = 5f;
+            
+            // Parser avec validation
+            if (initialPrepTimeInput != null)
+            {
+                if (!float.TryParse(initialPrepTimeInput.text, out initialPrep))
+                {
+                    isValid = false;
+                    initialPrepTimeInput.text = "10";
+                }
+                else
+                {
+                    initialPrep = Mathf.Clamp(initialPrep, 5f, 60f);
+                }
+            }
+            
+            if (delayAfterFirstInput != null)
+            {
+                if (!float.TryParse(delayAfterFirstInput.text, out delayAfterFirst))
+                {
+                    isValid = false;
+                    delayAfterFirstInput.text = "15";
+                }
+                else
+                {
+                    delayAfterFirst = Mathf.Clamp(delayAfterFirst, 5f, 60f);
+                }
+            }
+            
+            if (prepBetweenWavesInput != null)
+            {
+                if (!float.TryParse(prepBetweenWavesInput.text, out prepBetweenWaves))
+                {
+                    isValid = false;
+                    prepBetweenWavesInput.text = "5";
+                }
+                else
+                {
+                    prepBetweenWaves = Mathf.Clamp(prepBetweenWaves, 0f, 30f);
+                }
+            }
+            
+            if (!isValid)
+            {
+                UpdateConfigStatus("Erreur: Valeurs invalides corrigées", Color.red);
+                return;
+            }
+            
+            // Créer la nouvelle configuration
+            currentWaveConfig = new WaveConfigurationMessage
+            {
+                initialPreparationTime = initialPrep,
+                delayAfterFirstFinish = delayAfterFirst,
+                preparationTimeBetweenWaves = prepBetweenWaves
+            };
+            
+            // Sauvegarder localement
+            SaveWaveConfiguration(currentWaveConfig);
+            
+            // Diffuser à tous les clients
+            if (Net != null)
+            {
+                string json = JsonUtility.ToJson(currentWaveConfig);
+                Net.BroadcastMessage("WAVE_CONFIG_UPDATE", json);
+                
+                Debug.Log($"[LobbyController] Wave configuration updated and broadcast: " +
+                         $"Initial={initialPrep}s, Delay={delayAfterFirst}s, Prep={prepBetweenWaves}s");
+            }
+            
+            UpdateConfigStatus("Configuration appliquée et diffusée", Color.green);
+            
+            // Informer dans le chat
+            AppendChatLine("Serveur", $"Configuration mise à jour: Préparation={initialPrep}s, Délai après premier={delayAfterFirst}s");
+        }
+
+        /// <summary>
+        /// SaveWaveConfiguration - Sauvegarde la configuration des vagues
+        /// </summary>
+        private void SaveWaveConfiguration(WaveConfigurationMessage config)
+        {
+            string json = JsonUtility.ToJson(config);
+            PlayerPrefs.SetString(WAVE_CONFIG_KEY, json);
+            PlayerPrefs.Save();
+            
+            Debug.Log("[LobbyController] Wave configuration saved to PlayerPrefs");
+        }
+
+        /// <summary>
+        /// UpdateConfigStatus - Met à jour le texte de statut de configuration
+        /// </summary>
+        private void UpdateConfigStatus(string message, Color color)
+        {
+            if (configStatusText != null)
+            {
+                configStatusText.text = message;
+                configStatusText.color = color;
+                
+                // Faire disparaître le message après 3 secondes
+                CancelInvoke(nameof(ClearConfigStatus));
+                Invoke(nameof(ClearConfigStatus), 3f);
+            }
+        }
+
+        /// <summary>
+        /// ClearConfigStatus - Efface le texte de statut
+        /// </summary>
+        private void ClearConfigStatus()
+        {
+            if (configStatusText != null)
+            {
+                configStatusText.text = "";
+            }
+        }
+
+        /// <summary>
+        /// OnWaveConfigurationReceived - Appelé quand un client reçoit une mise à jour de configuration
+        /// </summary>
+        private void OnWaveConfigurationReceived(string jsonData)
+        {
+            try
+            {
+                currentWaveConfig = JsonUtility.FromJson<WaveConfigurationMessage>(jsonData);
+                SaveWaveConfiguration(currentWaveConfig);
+                
+                Debug.Log($"[LobbyController] Wave configuration received from server: " +
+                         $"Initial={currentWaveConfig.initialPreparationTime}s, " +
+                         $"Delay={currentWaveConfig.delayAfterFirstFinish}s");
+                
+                // Informer le joueur
+                AppendChatLine("Serveur", "La configuration des vagues a été mise à jour par l'hôte");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[LobbyController] Error receiving configuration: {e.Message}");
+            }
         }
 
         #endregion
@@ -112,9 +454,31 @@ namespace BaboonTower.UI
             UpdateConnectionStatus(state, mode);
             UpdateButtons(state, mode);
             UpdateLobbyInfo(mode);
+            UpdateWaveConfigVisibility(mode);
 
             if (Net.ConnectedPlayers.Count > 0)
                 UpdatePlayersList(Net.ConnectedPlayers);
+        }
+        
+        private void UpdateWaveConfigVisibility(NetworkMode mode)
+        {
+            bool isHost = (mode == NetworkMode.Host);
+            
+            if (toggleConfigButton != null)
+            {
+                toggleConfigButton.gameObject.SetActive(isHost);
+            }
+            
+            if (waveConfigSection != null)
+            {
+                waveConfigSection.SetActive(isHost);
+            }
+            
+            // Si on n'est pas hôte et que le panel est ouvert, le fermer
+            if (!isHost && waveConfigPanel != null && waveConfigPanel.activeSelf)
+            {
+                waveConfigPanel.SetActive(false);
+            }
         }
 
         private void UpdateConnectionStatus(ConnectionState state, NetworkMode mode)
@@ -304,6 +668,19 @@ namespace BaboonTower.UI
 
         private void StartGame()
         {
+            // S'assurer que la configuration est sauvegardée avant de démarrer
+            if (currentWaveConfig != null)
+            {
+                SaveWaveConfiguration(currentWaveConfig);
+                
+                // Diffuser une dernière fois la configuration
+                if (Net != null)
+                {
+                    string json = JsonUtility.ToJson(currentWaveConfig);
+                    Net.BroadcastMessage("WAVE_CONFIG_UPDATE", json);
+                }
+            }
+            
             // Côté host: on délègue la logique au NetworkManager
             Net?.HostTryStartGame();
         }
@@ -390,10 +767,37 @@ namespace BaboonTower.UI
         private void OnPlayersUpdated(List<PlayerData> players) => UpdatePlayersList(players);
         private void OnServerMessage(string message) => AppendChatLine("Serveur", message);
 
-        private void OnGameStarted()
+private void OnGameStarted()
+{
+    Debug.Log("[LobbyController] OnGameStarted event received!");
+    
+    // NE PAS charger la scène immédiatement si déjà dans GameScene
+    if (SceneManager.GetActiveScene().name != "GameScene")
+    {
+        // Sauvegarder la configuration
+        if (currentWaveConfig != null)
         {
-            // Si tu déclenches un event côté NetworkManager, on peut charger ici.
-            SceneManager.LoadScene("GameScene");
+            SaveWaveConfiguration(currentWaveConfig);
+        }
+        
+        Debug.Log("[LobbyController] Loading GameScene...");
+        SceneManager.LoadScene("GameScene");
+    }
+}
+
+private System.Collections.IEnumerator LoadGameSceneWithDelay()
+{
+    yield return new WaitForSeconds(0.5f);
+    Debug.Log("[LobbyController] Actually loading GameScene now");
+    SceneManager.LoadScene("GameScene");
+}
+        
+        private void OnGameMessageReceived(string messageType, string data)
+        {
+            if (messageType == "WAVE_CONFIG_UPDATE")
+            {
+                OnWaveConfigurationReceived(data);
+            }
         }
 
         #endregion
@@ -415,5 +819,15 @@ namespace BaboonTower.UI
         }
 
         #endregion
+        
+        // Classe helper pour parser le fichier complet (privée, interne à LobbyController)
+        [System.Serializable]
+        private class FullWaveConfiguration
+        {
+            public float initialPreparationTime;
+            public float delayAfterFirstFinish;
+            public float preparationTimeBetweenWaves;
+            // Les autres champs du fichier JSON ne sont pas nécessaires ici
+        }
     }
 }

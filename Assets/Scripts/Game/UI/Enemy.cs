@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using BaboonTower.Network;
+using System.Linq; // AJOUTER CETTE LIGNE
 
 namespace BaboonTower.Game
 {
@@ -86,14 +87,15 @@ namespace BaboonTower.Game
             }
         }
 
-        private void Update()
-        {
-            if (isInitialized && pathToFollow != null && pathToFollow.Count > 0)
-            {
-                FollowPath();
-                UpdateHealthBarPosition();
-            }
-        }
+private void Update()
+{
+    if (isInitialized && pathToFollow != null && pathToFollow.Count > 0)
+    {
+        FollowPath();
+        UpdateHealthBarPosition();
+    }
+}
+
 
         /// <summary>
         /// Configure les stats selon le type d'ennemi (selon le GDD)
@@ -130,6 +132,23 @@ namespace BaboonTower.Game
             currentHealth = maxHealth;
         }
 
+    
+    
+    /// <summary>
+    /// GetCurrentHealth - Getter pour la santé actuelle
+    /// </summary>
+    public int GetCurrentHealth()
+    {
+        return currentHealth;
+    }
+    
+    /// <summary>
+    /// GetCurrentWaypointIndex - Getter pour l'index du waypoint actuel
+    /// </summary>
+    public int GetCurrentWaypointIndex()
+    {
+        return currentWaypointIndex;
+    }
         /// <summary>
         /// Suit le chemin défini par les waypoints
         /// </summary>
@@ -166,28 +185,30 @@ namespace BaboonTower.Game
             }
         }
 
-        /// <summary>
-        /// L'ennemi atteint le château
-        /// </summary>
-        private void ReachCastle()
+private void ReachCastle()
+    {
+        Debug.Log($"Enemy reached castle! Damage: {damage}");
+
+        OnEnemyReachedEnd?.Invoke(this);
+
+        // Infliger des dégâts au château du JOUEUR LOCAL
+        if (gameController != null)
         {
-            Debug.Log($"Enemy reached castle! Damage: {damage}");
-
-            OnEnemyReachedEnd?.Invoke(this);
-
-            // Infliger des dégâts au château (seulement si on est l'host)
-            if (NetworkManager.Instance?.CurrentMode == NetworkMode.Host && gameController != null)
+            // Obtenir l'ID du joueur local différemment selon Host/Client
+            int localPlayerId = GetLocalPlayerId();
+            
+            if (NetworkManager.Instance?.CurrentMode == NetworkMode.Host)
             {
-                var players = gameController.GameStateData?.playersStates;
-                if (players != null && players.Count > 0)
-                {
-                    gameController.DamageCastle(players[0].playerId, damage);
-                    Debug.Log($"Damaged player {players[0].playerId}'s castle for {damage} HP");
-                }
+                gameController.DamageCastle(localPlayerId, damage);
             }
-
-            Destroy(gameObject);
+            else
+            {
+                NetworkManager.Instance?.SendGameMessageToServer("DAMAGE_REQUEST", $"{localPlayerId}|{damage}");
+            }
         }
+
+        Destroy(gameObject);
+    }
 
         /// <summary>
         /// Crée le visuel de l'ennemi avec SpriteRenderer
@@ -383,29 +404,46 @@ namespace BaboonTower.Game
             }
         }
 
-        /// <summary>
-        /// L'ennemi meurt
-        /// </summary>
-        private void Die()
+private void Die()
+    {
+        Debug.Log($"Enemy died! Gold reward: {goldReward}");
+
+        OnEnemyKilled?.Invoke(this, goldReward);
+
+        // Donner l'or au JOUEUR LOCAL
+        if (gameController != null)
         {
-            Debug.Log($"Enemy died! Gold reward: {goldReward}");
-
-            OnEnemyKilled?.Invoke(this, goldReward);
-
-            // Donner l'or au joueur (seulement si on est l'host)
-            if (NetworkManager.Instance?.CurrentMode == NetworkMode.Host && gameController != null)
+            int localPlayerId = GetLocalPlayerId();
+            
+            if (NetworkManager.Instance?.CurrentMode == NetworkMode.Host)
             {
-                var players = gameController.GameStateData?.playersStates;
-                if (players != null && players.Count > 0)
-                {
-                    gameController.AddGoldToPlayer(players[0].playerId, goldReward);
-                    Debug.Log($"Gave {goldReward} gold to player {players[0].playerId}");
-                }
+                gameController.AddGoldToPlayer(localPlayerId, goldReward);
             }
-
-            Destroy(gameObject);
+            else
+            {
+                NetworkManager.Instance?.SendGameMessageToServer("GOLD_REQUEST", $"{localPlayerId}|{goldReward}");
+            }
         }
 
+        Destroy(gameObject);
+    }
+private int GetLocalPlayerId()
+    {
+        if (NetworkManager.Instance != null && NetworkManager.Instance.ConnectedPlayers.Count > 0)
+        {
+            if (NetworkManager.Instance.CurrentMode == NetworkMode.Host)
+            {
+                var hostPlayer = NetworkManager.Instance.ConnectedPlayers.FirstOrDefault(p => p.isHost);
+                return hostPlayer?.playerId ?? 0;
+            }
+            else
+            {
+                var clientPlayer = NetworkManager.Instance.ConnectedPlayers.FirstOrDefault(p => !p.isHost);
+                return clientPlayer?.playerId ?? 1;
+            }
+        }
+        return 0;
+    }
         // Getters publics
         public EnemyType GetEnemyType() => enemyType;
         public int GetGoldReward() => goldReward;
