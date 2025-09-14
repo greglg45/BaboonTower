@@ -36,8 +36,8 @@ namespace BaboonTower.Game
     public class WaveManager : MonoBehaviour
     {
     /// <summary>
-    /// WaveManager - Gère les vagues d'ennemis avec synchronisation réseau complète
-    /// Gestion du premier joueur à terminer et déclenchement synchronisé des vagues suivantes
+    /// WaveManager - GÃ¨re les vagues d'ennemis avec synchronisation rÃ©seau complÃ¨te
+    /// Gestion du premier joueur Ã  terminer et dÃ©clenchement synchronisÃ© des vagues suivantes
     /// </summary>
 
         [Header("Configuration")]
@@ -52,7 +52,7 @@ namespace BaboonTower.Game
         [SerializeField] private float waveCompletionTime;
 		[SerializeField] private int firstFinisherPlayerId = -1;
 		[SerializeField] private string firstFinisherName = "";
-		// True quand TOUT le spawn de la vague est terminé (évite les complétions prématurées)
+		// True quand TOUT le spawn de la vague est terminÃ© (Ã©vite les complÃ©tions prÃ©maturÃ©es)
 		[SerializeField] private bool hasSpawnedAllEnemies = false;
         
         [Header("Debug")]
@@ -86,19 +86,11 @@ namespace BaboonTower.Game
             LoadWaveConfiguration();
             CreateEnemiesContainer();
             
-            // S'inscrire aux messages réseau
-            if (networkManager != null)
-            {
-                networkManager.OnGameMessage += ProcessNetworkMessage;
-            }
+
         }
         
         private void OnDestroy()
         {
-            if (networkManager != null)
-            {
-                networkManager.OnGameMessage -= ProcessNetworkMessage;
-            }
             
             if (nextWaveTimerCoroutine != null)
             {
@@ -111,7 +103,7 @@ namespace BaboonTower.Game
         /// </summary>
         private void LoadWaveConfiguration()
         {
-            // D'abord essayer de charger depuis PlayerPrefs (configuration envoyée par l'hôte)
+            // D'abord essayer de charger depuis PlayerPrefs (configuration envoyÃ©e par l'hÃ´te)
             string savedConfig = PlayerPrefs.GetString("WaveConfiguration", "");
             
             if (!string.IsNullOrEmpty(savedConfig))
@@ -146,7 +138,7 @@ namespace BaboonTower.Game
         }
         
         /// <summary>
-        /// ApplySimpleConfiguration - Applique la configuration simplifiée reçue du lobby
+        /// ApplySimpleConfiguration - Applique la configuration simplifiÃ©e reÃ§ue du lobby
         /// </summary>
         private void ApplySimpleConfiguration(WaveConfigurationMessage config)
         {
@@ -164,7 +156,7 @@ namespace BaboonTower.Game
         }
         
  /// <summary>
-/// StartWave - Démarre une vague (synchronisé réseau) - CORRIGÉ
+/// StartWave - DÃ©marre une vague (synchronisÃ© rÃ©seau) - CORRIGÃ‰
 /// </summary>
 public void StartWave(int waveNumber)
 {
@@ -177,20 +169,20 @@ public void StartWave(int waveNumber)
 		currentWave = waveNumber;
 		waveInProgress = true;
 		hasSpawnedAllEnemies = false;
-		// Nettoyer un éventuel timer hérité
+		// Nettoyer un Ã©ventuel timer hÃ©ritÃ©
 		if (nextWaveTimerCoroutine != null) { StopCoroutine(nextWaveTimerCoroutine); nextWaveTimerCoroutine = null; }
 
     
-    // IMPORTANT : Réinitialiser le premier finisseur pour chaque vague
+    // IMPORTANT : RÃ©initialiser le premier finisseur pour chaque vague
     firstFinisherPlayerId = -1;
     firstFinisherName = "";
     
     Debug.Log($"[WaveManager Host] Starting wave {waveNumber} - Reset first finisher");
     
-    // Diffuser le début de vague à tous les clients
+    // Diffuser le dÃ©but de vague Ã  tous les clients
     BroadcastWaveStart(waveNumber);
     
-    // L'hôte démarre son spawn local
+    // L'hÃ´te dÃ©marre son spawn local
     if (autoSpawnEnemies)
     {
         StartCoroutine(SpawnWaveCoroutine(waveNumber));
@@ -238,32 +230,46 @@ public void StartWave(int waveNumber)
 
        
 /// <summary>
-/// HandleWaveStartSync - CORRIGÉ pour réinitialiser le premier finisseur
+/// HandleWaveStartSync - CORRIGÃ‰ pour rÃ©initialiser le premier finisseur
 /// </summary>
 private void HandleWaveStartSync(string data)
 {
-    var message = JsonUtility.FromJson<WaveStartMessage>(data);
-	currentWave = message.waveNumber;
-	waveInProgress = true;
-	hasSpawnedAllEnemies = false;
+    Debug.Log($"[WaveManager DEBUG] HandleWaveStartSync called with data: {data}");
     
-    // IMPORTANT : Réinitialiser aussi côté client
-    firstFinisherPlayerId = -1;
-    firstFinisherName = "";
-    
-    Debug.Log($"[WaveManager Client] Received wave start sync for wave {message.waveNumber} - Reset first finisher");
-    
-    if (autoSpawnEnemies)
+    try
     {
-        Debug.Log($"[WaveManager Client] Starting spawn coroutine for wave {message.waveNumber}");
-        StartCoroutine(SpawnWaveCoroutine(message.waveNumber));
+        var message = JsonUtility.FromJson<WaveStartMessage>(data);
+        Debug.Log($"[WaveManager DEBUG] Parsed WaveStartMessage: Wave {message.waveNumber}, Timestamp {message.timestamp}");
+        
+        currentWave = message.waveNumber;
+        waveInProgress = true;
+        hasSpawnedAllEnemies = false;
+        
+        // IMPORTANT : RÃ©initialiser aussi cÃ´tÃ© client
+        firstFinisherPlayerId = -1;
+        firstFinisherName = "";
+        
+        Debug.Log($"[WaveManager Client] Received wave start sync for wave {message.waveNumber} - Reset first finisher");
+        Debug.Log($"[WaveManager DEBUG] autoSpawnEnemies: {autoSpawnEnemies}");
+        
+        if (autoSpawnEnemies)
+        {
+            Debug.Log($"[WaveManager Client] Starting spawn coroutine for wave {message.waveNumber}");
+            StartCoroutine(SpawnWaveCoroutine(message.waveNumber));
+        }
+        else
+        {
+            Debug.LogWarning("[WaveManager Client] autoSpawnEnemies is false, not spawning enemies!");
+        }
+        
+        Debug.Log($"[WaveManager DEBUG] About to invoke OnWaveStarted event...");
+        OnWaveStarted?.Invoke(message.waveNumber);
+        Debug.Log($"[WaveManager DEBUG] OnWaveStarted event invoked");
     }
-    else
+    catch (System.Exception e)
     {
-        Debug.LogWarning("[WaveManager Client] autoSpawnEnemies is false, not spawning enemies!");
+        Debug.LogError($"[WaveManager DEBUG] Error in HandleWaveStartSync: {e.Message}\n{e.StackTrace}");
     }
-    
-    OnWaveStarted?.Invoke(message.waveNumber);
 }
 
         #endregion
@@ -275,7 +281,7 @@ private void SpawnEnemy(string enemyType, int waveNumber)
         return;
     }
     
-    // Créer l'ennemi LOCALEMENT seulement
+    // CrÃ©er l'ennemi LOCALEMENT seulement
     GameObject enemyGO = null;
     
     if (enemyPrefab != null)
@@ -300,7 +306,7 @@ private void SpawnEnemy(string enemyType, int waveNumber)
     // Initialiser l'ennemi avec le chemin
     enemy.InitializeForMapV3(type, new List<Vector3>(mapLoader.WorldPath), gameController);
     
-    // S'abonner aux événements
+    // S'abonner aux Ã©vÃ©nements
     enemy.OnEnemyKilled += OnEnemyKilled;
     enemy.OnEnemyReachedEnd += OnEnemyReachedEnd;
     
@@ -312,7 +318,7 @@ private void SpawnEnemy(string enemyType, int waveNumber)
     }
 }
         /// <summary>
-        /// CreateEnemyGameObject - Crée le GameObject de l'ennemi
+        /// CreateEnemyGameObject - CrÃ©e le GameObject de l'ennemi
         /// </summary>
         private GameObject CreateEnemyGameObject(string enemyType, int enemyId)
         {
@@ -333,7 +339,7 @@ private void SpawnEnemy(string enemyType, int waveNumber)
             return enemyGO;
         }
         /// <summary>
-        /// OnEnemyKilled - Appelé quand un ennemi est tué (modifié pour inclure l'ID)
+        /// OnEnemyKilled - AppelÃ© quand un ennemi est tuÃ© (modifiÃ© pour inclure l'ID)
         /// </summary>
         private void OnEnemyKilled(Enemy enemy, int goldReward)
 {
@@ -349,7 +355,7 @@ private void SpawnEnemy(string enemyType, int waveNumber)
 
         
         /// <summary>
-        /// OnEnemyReachedEnd - Appelé quand un ennemi atteint le château (modifié pour inclure l'ID)
+        /// OnEnemyReachedEnd - AppelÃ© quand un ennemi atteint le chÃ¢teau (modifiÃ© pour inclure l'ID)
         /// </summary>
         private void OnEnemyReachedEnd(Enemy enemy)
 {
@@ -363,7 +369,7 @@ private void SpawnEnemy(string enemyType, int waveNumber)
     CheckWaveCompletion();
 }
 /// <summary>
-/// CheckWaveCompletion - Vérifie si la vague est terminée
+/// CheckWaveCompletion - VÃ©rifie si la vague est terminÃ©e
 /// </summary>
 private void CheckWaveCompletion()
 {
@@ -375,14 +381,14 @@ private void CheckWaveCompletion()
         Debug.Log($"[WaveManager] Wave {currentWave} completed!");
         OnWaveCompleted?.Invoke(currentWave);
         
-        // Si on est l'hôte
+        // Si on est l'hÃ´te
         if (IsHost)
         {
             HandleWaveCompletionAsHost();
         }
         else
         {
-            // IMPORTANT : Les clients DOIVENT notifier l'hôte
+            // IMPORTANT : Les clients DOIVENT notifier l'hÃ´te
             Debug.Log("[WaveManager Client] Notifying host of wave completion");
             NotifyWaveCompletionToHost();
         }
@@ -390,7 +396,7 @@ private void CheckWaveCompletion()
 }
 
 /// <summary>
-/// NotifyWaveCompletionToHost - Un client notifie l'hôte qu'il a terminé sa vague
+/// NotifyWaveCompletionToHost - Un client notifie l'hÃ´te qu'il a terminÃ© sa vague
 /// </summary>
 private void NotifyWaveCompletionToHost()
 {
@@ -410,7 +416,7 @@ private void NotifyWaveCompletionToHost()
 }
         
         /// <summary>
-        /// HandleWaveCompletionAsHost - Gère la complétion de vague côté hôte
+        /// HandleWaveCompletionAsHost - GÃ¨re la complÃ©tion de vague cÃ´tÃ© hÃ´te
         /// </summary>
 private void HandleWaveCompletionAsHost()
 {
@@ -430,7 +436,7 @@ private void HandleWaveCompletionAsHost()
         
        
         /// <summary>
-        /// BroadcastWaveStart - Diffuse le début d'une vague à tous les clients
+        /// BroadcastWaveStart - Diffuse le dÃ©but d'une vague Ã  tous les clients
         /// </summary>
 private void BroadcastWaveStart(int waveNumber)
 {
@@ -448,7 +454,7 @@ private void BroadcastWaveStart(int waveNumber)
 }
         
         /// <summary>
-        /// BroadcastFirstFinisher - Diffuse l'information du premier joueur à finir
+        /// BroadcastFirstFinisher - Diffuse l'information du premier joueur Ã  finir
         /// </summary>
         private void BroadcastFirstFinisher(int playerId, string playerName)
         {
@@ -493,7 +499,7 @@ private void HandleFirstFinisherMessage(string data)
     
     Debug.Log($"[WaveManager Client] First finisher notification: {message.playerName}");
     
-    // IMPORTANT : Les clients doivent aussi démarrer leur timer LOCAL pour l'affichage
+    // IMPORTANT : Les clients doivent aussi dÃ©marrer leur timer LOCAL pour l'affichage
     if (!IsHost)
     {
         if (nextWaveTimerCoroutine != null)
@@ -504,7 +510,7 @@ private void HandleFirstFinisherMessage(string data)
     }
 }
 /// <summary>
-/// ClientNextWaveTimerCoroutine - Timer côté client pour l'affichage uniquement
+/// ClientNextWaveTimerCoroutine - Timer cÃ´tÃ© client pour l'affichage uniquement
 /// </summary>
 private IEnumerator ClientNextWaveTimerCoroutine(float startTime)
 {
@@ -514,18 +520,18 @@ private IEnumerator ClientNextWaveTimerCoroutine(float startTime)
     
     while (timer > 0)
     {
-        // Juste mettre à jour l'affichage, pas de broadcast
+        // Juste mettre Ã  jour l'affichage, pas de broadcast
         OnNextWaveTimerUpdate?.Invoke(timer);
         
         yield return new WaitForSeconds(1f);
         timer -= 1f;
     }
     
-    // Le client attend que l'hôte lance la vague
+    // Le client attend que l'hÃ´te lance la vague
     Debug.Log($"[WaveManager Client] Timer finished, waiting for host to start next wave");
 }
 /// <summary>
-/// NextWaveTimerCoroutine - Timer côté hôte qui déclenche la vague suivante
+/// NextWaveTimerCoroutine - Timer cÃ´tÃ© hÃ´te qui dÃ©clenche la vague suivante
 /// </summary>
 private IEnumerator NextWaveTimerCoroutine()
 {
@@ -535,7 +541,7 @@ private IEnumerator NextWaveTimerCoroutine()
     
     while (timer > 0)
     {
-        // Diffuser le timer à tous les clients
+        // Diffuser le timer Ã  tous les clients
         BroadcastNextWaveTimer(timer);
         OnNextWaveTimerUpdate?.Invoke(timer);
         
@@ -543,22 +549,37 @@ private IEnumerator NextWaveTimerCoroutine()
         timer -= 1f;
     }
     
-    // L'HÔTE démarre la prochaine vague pour TOUT LE MONDE
+    // L'HÃ”TE dÃ©marre la prochaine vague pour TOUT LE MONDE
     Debug.Log($"[WaveManager Host] Timer expired, starting wave {currentWave + 1} for everyone!");
     
-    // NE PAS passer par GameController, démarrer directement
+    // NE PAS passer par GameController, dÃ©marrer directement
     StartWave(currentWave + 1);
 }
 
 /// <summary>
-/// ProcessNetworkMessage - Traite les messages réseau (modifié)
+/// ProcessNetworkMessage - Traite les messages rÃ©seau (modifiÃ©)
 /// </summary>
 public void ProcessNetworkMessage(string messageType, string data)
 {
+	    if (messageType == "WAVE_START_SYNC")
+    {
+        Debug.Log($"[WaveManager DEBUG] ProcessNetworkMessage called for WAVE_START_SYNC. Data: {data}");
+        Debug.Log($"[WaveManager DEBUG] IsHost: {IsHost}");
+        Debug.Log($"[WaveManager DEBUG] About to call HandleWaveStartSync...");
+    }
     switch (messageType)
     {
-        case "WAVE_START_SYNC":
-            if (!IsHost) HandleWaveStartSync(data);
+                case "WAVE_START_SYNC":
+            if (!IsHost) 
+            {
+                Debug.Log($"[WaveManager DEBUG] Calling HandleWaveStartSync...");
+                HandleWaveStartSync(data);
+                Debug.Log($"[WaveManager DEBUG] HandleWaveStartSync completed");
+            }
+            else
+            {
+                Debug.Log($"[WaveManager DEBUG] Ignoring WAVE_START_SYNC because IsHost=true");
+            }
             break;
             
         case "FIRST_FINISHER":
@@ -566,7 +587,7 @@ public void ProcessNetworkMessage(string messageType, string data)
             break;
             
         case "NEXT_WAVE_TIMER":
-            // Les clients mettent juste à jour l'affichage
+            // Les clients mettent juste Ã  jour l'affichage
             if (!IsHost && float.TryParse(data, out float timer))
             {
                 OnNextWaveTimerUpdate?.Invoke(timer);
@@ -593,7 +614,7 @@ private void LogNetworkDebug(string message)
     #endif
 }
 /// <summary>
-/// HandleClientWaveCompletion - CORRIGÉ pour permettre aux clients d'être premiers
+/// HandleClientWaveCompletion - CORRIGÃ‰ pour permettre aux clients d'Ãªtre premiers
 /// </summary>
 private void HandleClientWaveCompletion(string data)
 {
@@ -624,11 +645,11 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
         {
             if (waveConfig == null || waveConfig.waves == null) return null;
             
-            // Si on a une définition spécifique pour cette vague
+            // Si on a une dÃ©finition spÃ©cifique pour cette vague
             var specificWave = waveConfig.waves.FirstOrDefault(w => w.waveNumber == waveNumber);
             if (specificWave != null) return specificWave;
             
-            // Sinon, utiliser la formule de génération
+            // Sinon, utiliser la formule de gÃ©nÃ©ration
             return GenerateWaveData(waveNumber);
         }
         
@@ -640,7 +661,7 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
                 groupInterval = waveConfig.defaultGroupInterval
             };
             
-            // Formule simple d'augmentation de difficulté
+            // Formule simple d'augmentation de difficultÃ©
             int smallCount = 5 + (waveNumber * 2);
             int mediumCount = waveNumber > 3 ? 3 + waveNumber : 0;
             int highCount = waveNumber > 7 ? waveNumber - 5 : 0;
@@ -754,7 +775,7 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
                 waves = new List<WaveData>()
             };
             
-            // Créer quelques vagues par défaut
+            // CrÃ©er quelques vagues par dÃ©faut
             for (int i = 1; i <= 10; i++)
             {
                 waveConfig.waves.Add(GenerateWaveData(i));
@@ -777,7 +798,7 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
                 nextWaveTimerCoroutine = null;
             }
             
-            // Détruire tous les ennemis actifs
+            // DÃ©truire tous les ennemis actifs
             foreach (var enemy in activeEnemies)
             {
                 if (enemy != null)
@@ -801,7 +822,7 @@ private void ApplyServerSideCompletion(WaveCompletionMessage message)
         {
             Debug.Log("[WaveManager] Force completing wave");
             
-            // Détruire tous les ennemis
+            // DÃ©truire tous les ennemis
             foreach (var enemy in activeEnemies)
             {
                 if (enemy != null)
